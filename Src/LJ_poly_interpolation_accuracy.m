@@ -34,7 +34,7 @@ denom = 1 / inv_denom;
 
 r2 = single(min_range:0.01:max_range-0.01);
 
-% initialize array
+% initialize variables
 inv_r2 = single(zeros(length(r2),1));
 inv_r4 = single(zeros(length(r2),1));
 inv_r6 = single(zeros(length(r2),1));
@@ -44,6 +44,7 @@ inv_r14 = single(zeros(length(r2),1));
 s = single(zeros(length(r2),1));
 ds = single(zeros(length(r2),1));
 Fvdw_real = single(zeros(length(r2),1));
+Fvdw_poly = single(zeros(size(r2,2),1));
 
 % Coefficient gen (random number), independent of r
 Aij = 8;
@@ -80,10 +81,11 @@ for i = 1:size(r2,2)
     Fvdw_real(i) = Aij * inv_r14(i) + Bij * inv_r8(i);
 end
 
-%% Generate the interpolation table
+%% Generate the interpolation table (only need to run this once if the interpolation parameter remains)
 %LJ_poly_interpolation_function(interpolation_order,bin_num,precision,min_range,max_range,cutoff,switchon);
 
 %% Evaluate the interpolation result
+% Load in the index data
 fileID_0  = fopen('file_c0_vdw14_f_order3_bin64.txt', 'r');
 fileID_1  = fopen('file_c1_vdw14_f_order3_bin64.txt', 'r');
 fileID_2  = fopen('file_c2_vdw14_f_order3_bin64.txt', 'r');
@@ -104,6 +106,17 @@ read_in_c1_vdw8 = textscan(fileID_5, '%f');
 read_in_c2_vdw8 = textscan(fileID_6, '%f');
 read_in_c3_vdw8 = textscan(fileID_7, '%f');
 
+% close file
+fclose(fileID_0);
+fclose(fileID_1);
+fclose(fileID_2);
+fclose(fileID_3);
+fclose(fileID_4);
+fclose(fileID_5);
+fclose(fileID_6);
+fclose(fileID_7);
+
+% Start evaluation
 for i = 1:size(r2,2)
     % Locate the segment of the current r2
     seg_ptr = 0;        % The first segment will be #0, second will be #1, etc....
@@ -142,18 +155,9 @@ for i = 1:size(r2,2)
     Fvdw_poly(i) = Aij * vdw14 + Bij * vdw8;
 end
 
-% close file
-fclose(fileID_0);
-fclose(fileID_1);
-fclose(fileID_2);
-fclose(fileID_3);
-fclose(fileID_4);
-fclose(fileID_5);
-fclose(fileID_6);
-fclose(fileID_7);
-
 
 %% Evaluate the Error rate
+diff_rate = zeros(size(r2,2),1);
 for i = 1:size(r2,2)
     difference = Fvdw_poly(i) - Fvdw_real(i);
     diff_rate(i) = abs(difference / Fvdw_real(i));
