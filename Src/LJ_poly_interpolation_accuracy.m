@@ -1,16 +1,29 @@
 clear all;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Evaluate the accuracy for interpolation
+% Currently only evaluate the LJ force, equation refer to 'Efficient Calculation of Pairwise Nonbonded Forces', M. Chiu, A. Khan, M. Herbordt, FCCM2011
+% Dependency: LJ_poly_interpolation_function.m (Generating the interpolation index and stored in txt file)
+% Final result:
+%       Fvdw_real: real result in single precision
+%       Fvdw_poly: result evaluated using polynomial
+%       average_error_rate: the average error rate for all the evaluated input r2
+%
+% By: Chen Yang
+% 05/18/2018
+% Boston University, CAAD Lab
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % m: interpolation order
 % bin: # of bins per segment
 % precision: # of datapoints for each interpolation
 % min, max : range of distance
 
-interpolation_order = 3;
+interpolation_order = 3;                % interpolation order, no larger than 3
 segment_num = 12;                       % # of segment
 bin_num = 256;                          % # of bins per segment
 precision = 8;                          % # of datepoints when generating the polynomial index 
 min_range = 0.01;                       % minimal range for the evaluation
-max_range = min_range * 2^segment_num;      % maximum range for the evaluation (currently this is the cutoff radius)
+max_range = min_range * 2^segment_num;  % maximum range for the evaluation (currently this is the cutoff radius)
 
 cutoff = single(max_range);             % Cut-off radius
 cutoff2 = cutoff * cutoff;
