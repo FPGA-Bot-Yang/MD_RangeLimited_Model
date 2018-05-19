@@ -28,23 +28,39 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
 
 	fileID_0  = fopen('file_c0_vdw14_f_order3_bin64.txt', 'wt');
     fileID_1  = fopen('file_c1_vdw14_f_order3_bin64.txt', 'wt');
-    fileID_2  = fopen('file_c2_vdw14_f_order3_bin64.txt', 'wt');
-    fileID_3  = fopen('file_c3_vdw14_f_order3_bin64.txt', 'wt');
+    if(m > 1)
+        fileID_2  = fopen('file_c2_vdw14_f_order3_bin64.txt', 'wt');
+    end
+    if(m > 2)
+        fileID_3  = fopen('file_c3_vdw14_f_order3_bin64.txt', 'wt');
+    end
     
     fileID_4  = fopen('file_c0_vdw8_f_order3_bin64.txt', 'wt');
     fileID_5  = fopen('file_c1_vdw8_f_order3_bin64.txt', 'wt');
-    fileID_6  = fopen('file_c2_vdw8_f_order3_bin64.txt', 'wt');
-    fileID_7  = fopen('file_c3_vdw8_f_order3_bin64.txt', 'wt');
+    if(m > 1)
+        fileID_6  = fopen('file_c2_vdw8_f_order3_bin64.txt', 'wt');
+    end
+    if(m > 2)
+        fileID_7  = fopen('file_c3_vdw8_f_order3_bin64.txt', 'wt');
+    end
     
     fileID_8  = fopen('file_c0_vdw12_e_order3_bin64.txt', 'wt');
     fileID_9  = fopen('file_c1_vdw12_e_order3_bin64.txt', 'wt');
-    fileID_10 = fopen('file_c2_vdw12_e_order3_bin64.txt', 'wt');
-    fileID_11 = fopen('file_c3_vdw12_e_order3_bin64.txt', 'wt');
+    if(m > 1)
+        fileID_10 = fopen('file_c2_vdw12_e_order3_bin64.txt', 'wt');
+    end
+    if(m > 2)
+        fileID_11 = fopen('file_c3_vdw12_e_order3_bin64.txt', 'wt');
+    end
     
     fileID_12 = fopen('file_c0_vdw6_e_order3_bin64.txt', 'wt');
     fileID_13 = fopen('file_c1_vdw6_e_order3_bin64.txt', 'wt');
-    fileID_14 = fopen('file_c2_vdw6_e_order3_bin64.txt', 'wt');
-    fileID_15 = fopen('file_c3_vdw6_e_order3_bin64.txt', 'wt');
+    if(m > 1)
+        fileID_14 = fopen('file_c2_vdw6_e_order3_bin64.txt', 'wt');
+    end
+    if(m > 2)
+        fileID_15 = fopen('file_c3_vdw6_e_order3_bin64.txt', 'wt');
+    end
     
     count = 0;
     
@@ -110,25 +126,58 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
             
             ncoef=length(r14_func);
             
-            fprintf(fileID_0,'%15.25f\n',r14_func(4));
-            fprintf(fileID_1,'%15.25f\n',r14_func(3));
-            fprintf(fileID_2,'%15.25f\n',r14_func(2)); 
-            fprintf(fileID_3,'%15.25f\n',r14_func(1)); 
-            
-            fprintf(fileID_4,'%15.25f\n',r8_func(4));
-            fprintf(fileID_5,'%15.25f\n',r8_func(3));
-            fprintf(fileID_6,'%15.25f\n',r8_func(2));
-            fprintf(fileID_7,'%15.25f\n',r8_func(1));
-            
-            fprintf(fileID_8, '%15.25f\n',r12_func(4));
-            fprintf(fileID_9, '%15.25f\n',r12_func(3));
-            fprintf(fileID_10,'%15.25f\n',r12_func(2)); 
-            fprintf(fileID_11,'%15.25f\n',r12_func(1));
-            
-            fprintf(fileID_12,'%15.25f\n',r6_func(4));
-            fprintf(fileID_13,'%15.25f\n',r6_func(3));
-            fprintf(fileID_14,'%15.25f\n',r6_func(2));
-            fprintf(fileID_15,'%15.25f\n',r6_func(1));
+            switch(m)
+                case 1
+                    fprintf(fileID_0,'%15.25f\n',r14_func(2));
+                    fprintf(fileID_1,'%15.25f\n',r14_func(1));
+
+                    fprintf(fileID_4,'%15.25f\n',r8_func(2));
+                    fprintf(fileID_5,'%15.25f\n',r8_func(1));
+
+                    fprintf(fileID_8, '%15.25f\n',r12_func(2));
+                    fprintf(fileID_9, '%15.25f\n',r12_func(1));
+
+                    fprintf(fileID_12,'%15.25f\n',r6_func(2));
+                    fprintf(fileID_13,'%15.25f\n',r6_func(1));
+                    
+                case 2
+                    fprintf(fileID_0,'%15.25f\n',r14_func(3));
+                    fprintf(fileID_1,'%15.25f\n',r14_func(2));
+                    fprintf(fileID_2,'%15.25f\n',r14_func(1)); 
+
+                    fprintf(fileID_4,'%15.25f\n',r8_func(3));
+                    fprintf(fileID_5,'%15.25f\n',r8_func(2));
+                    fprintf(fileID_6,'%15.25f\n',r8_func(1));
+
+                    fprintf(fileID_8, '%15.25f\n',r12_func(3));
+                    fprintf(fileID_9, '%15.25f\n',r12_func(2));
+                    fprintf(fileID_10,'%15.25f\n',r12_func(1)); 
+
+                    fprintf(fileID_12,'%15.25f\n',r6_func(3));
+                    fprintf(fileID_13,'%15.25f\n',r6_func(2));
+                    fprintf(fileID_14,'%15.25f\n',r6_func(1));
+                    
+                case 3
+                    fprintf(fileID_0,'%15.25f\n',r14_func(4));
+                    fprintf(fileID_1,'%15.25f\n',r14_func(3));
+                    fprintf(fileID_2,'%15.25f\n',r14_func(2)); 
+                    fprintf(fileID_3,'%15.25f\n',r14_func(1)); 
+
+                    fprintf(fileID_4,'%15.25f\n',r8_func(4));
+                    fprintf(fileID_5,'%15.25f\n',r8_func(3));
+                    fprintf(fileID_6,'%15.25f\n',r8_func(2));
+                    fprintf(fileID_7,'%15.25f\n',r8_func(1));
+
+                    fprintf(fileID_8, '%15.25f\n',r12_func(4));
+                    fprintf(fileID_9, '%15.25f\n',r12_func(3));
+                    fprintf(fileID_10,'%15.25f\n',r12_func(2)); 
+                    fprintf(fileID_11,'%15.25f\n',r12_func(1));
+
+                    fprintf(fileID_12,'%15.25f\n',r6_func(4));
+                    fprintf(fileID_13,'%15.25f\n',r6_func(3));
+                    fprintf(fileID_14,'%15.25f\n',r6_func(2));
+                    fprintf(fileID_15,'%15.25f\n',r6_func(1));
+            end
             
             %fprintf(fileID_0,'%d\t:\t%tx;\n', count, r14_func(4));
             %fprintf(fileID_1,'%d\t:\t%tx;\n', count, r14_func(3));
@@ -160,19 +209,24 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
     
     fclose(fileID_0);
     fclose(fileID_1);
-    fclose(fileID_2);
-    fclose(fileID_3);
     fclose(fileID_4);
     fclose(fileID_5);
-    fclose(fileID_6);
-    fclose(fileID_7);
     fclose(fileID_8);
     fclose(fileID_9);
-    fclose(fileID_10);
-    fclose(fileID_11);
     fclose(fileID_12);
     fclose(fileID_13);
-    fclose(fileID_14);
-    fclose(fileID_15);
-   
+
+    if m > 1
+        fclose(fileID_2);
+        fclose(fileID_6);
+        fclose(fileID_10);
+        fclose(fileID_14);
+    end
+    
+    if m > 2
+        fclose(fileID_3);
+        fclose(fileID_7);
+        fclose(fileID_11);
+        fclose(fileID_15);
+    end
     

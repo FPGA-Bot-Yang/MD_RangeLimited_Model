@@ -18,7 +18,7 @@ clear all;
 % precision: # of datapoints for each interpolation
 % min, max : range of distance
 
-interpolation_order = 3;                % interpolation order, no larger than 3
+interpolation_order = 1;                % interpolation order, no larger than 3
 segment_num = 12;                       % # of segment
 bin_num = 256;                          % # of bins per segment
 precision = 8;                          % # of datepoints when generating the polynomial index 
@@ -82,7 +82,7 @@ for i = 1:size(r2,2)
 end
 
 %% Generate the interpolation table (only need to run this once if the interpolation parameter remains)
-%LJ_poly_interpolation_function(interpolation_order,bin_num,precision,min_range,max_range,cutoff,switchon);
+LJ_poly_interpolation_function(interpolation_order,bin_num,precision,min_range,max_range,cutoff,switchon);
 
 %% Evaluate the interpolation result
 % Load in the index data
@@ -140,17 +140,33 @@ for i = 1:size(r2,2)
     % Fetch the index for the polynomials
     c0_vdw14 = single(read_in_c0_vdw14{1}(lut_index));
     c1_vdw14 = single(read_in_c1_vdw14{1}(lut_index));
-    c2_vdw14 = single(read_in_c2_vdw14{1}(lut_index));
-    c3_vdw14 = single(read_in_c3_vdw14{1}(lut_index));
+    if interpolation_order > 1
+        c2_vdw14 = single(read_in_c2_vdw14{1}(lut_index));
+    end
+    if interpolation_order > 2
+        c3_vdw14 = single(read_in_c3_vdw14{1}(lut_index));
+    end
     c0_vdw8 = single(read_in_c0_vdw8{1}(lut_index));
     c1_vdw8 = single(read_in_c1_vdw8{1}(lut_index));
-    c2_vdw8 = single(read_in_c2_vdw8{1}(lut_index));
-    c3_vdw8 = single(read_in_c3_vdw8{1}(lut_index));
+    if interpolation_order > 1
+        c2_vdw8 = single(read_in_c2_vdw8{1}(lut_index));
+    end
+    if interpolation_order > 2
+        c3_vdw8 = single(read_in_c3_vdw8{1}(lut_index));
+    end
     
     % Calculate the poly value
-    vdw14 = polyval([c3_vdw14 c2_vdw14 c1_vdw14 c0_vdw14], r2(i));
-    vdw8 = polyval([c3_vdw8 c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
-    
+    switch(interpolation_order)
+        case 1
+            vdw14 = polyval([c1_vdw14 c0_vdw14], r2(i));
+            vdw8 = polyval([c1_vdw8 c0_vdw8], r2(i));
+        case 2
+            vdw14 = polyval([c2_vdw14 c1_vdw14 c0_vdw14], r2(i));
+            vdw8 = polyval([c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
+        case 3
+            vdw14 = polyval([c3_vdw14 c2_vdw14 c1_vdw14 c0_vdw14], r2(i));
+            vdw8 = polyval([c3_vdw8 c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
+    end
     % Calculate the force
     Fvdw_poly(i) = Aij * vdw14 + Bij * vdw8;
 end
