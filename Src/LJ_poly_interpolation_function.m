@@ -10,56 +10,78 @@
 % poly_interpolation_coef_real(3,16,2^-4,2^-3,'a.txt')
 
 
-% m: interpolation order
-% n: # of bins per segment
+% interpolation_order: interpolation order
+% bin_num: # of bins per segment
 % precision: # of datapoints for each interpolation
 % min, max: range of distance
 % cutoff: cut-off radius
 % switchon: switch on distance
-function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
-% m is the order of interpolation. i.e, m=1 produces ax+b
+function  LJ_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min,max,cutoff,switchon)
+% interpolation_order is the order of interpolation. i.e, interpolation_order=1 produces ax+b
 % the results are from lower order to higher order, i.e coef(0,0) is the coefficient of constant term for first bin.
-	if(nargin<5)
-		error('poly_interpolation_function(m,n,precision,min,max)');
-	end
-	if(min<0)
+	if nargin < 6 
+        error('LJ_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min,max,cutoff,switchon)');
+    end
+    
+	if min < 0
 		error('min must be greater than 0.');
+    end
+    
+	if interpolation_order > 3 || interpolation_order <= 0
+        error('The supported interpolation order is 1, 2, 3 ....\n');
 	end
 
-	fileID_0  = fopen('file_c0_vdw14_f_order3_bin64.txt', 'wt');
-    fileID_1  = fopen('file_c1_vdw14_f_order3_bin64.txt', 'wt');
-    if(m > 1)
-        fileID_2  = fopen('file_c2_vdw14_f_order3_bin64.txt', 'wt');
+    %% Create output files
+	fileID_0  = fopen('file_c0_vdw14_f.txt', 'wt');
+    fileID_1  = fopen('file_c1_vdw14_f.txt', 'wt');
+    fileID_mif_0 = fopen('file_c0_vdw14_f.mif', 'wt');
+    fileID_mif_1 = fopen('file_c1_vdw14_f.mif', 'wt');
+    if(interpolation_order > 1)
+        fileID_2  = fopen('file_c2_vdw14_f.txt', 'wt');
+        fileID_mif_2 = fopen('file_c2_vdw14_f.mif', 'wt');
     end
-    if(m > 2)
-        fileID_3  = fopen('file_c3_vdw14_f_order3_bin64.txt', 'wt');
-    end
-    
-    fileID_4  = fopen('file_c0_vdw8_f_order3_bin64.txt', 'wt');
-    fileID_5  = fopen('file_c1_vdw8_f_order3_bin64.txt', 'wt');
-    if(m > 1)
-        fileID_6  = fopen('file_c2_vdw8_f_order3_bin64.txt', 'wt');
-    end
-    if(m > 2)
-        fileID_7  = fopen('file_c3_vdw8_f_order3_bin64.txt', 'wt');
+    if(interpolation_order > 2)
+        fileID_3  = fopen('file_c3_vdw14_f.txt', 'wt');
+        fileID_mif_3 = fopen('file_c3_vdw14_f.mif', 'wt');
     end
     
-    fileID_8  = fopen('file_c0_vdw12_e_order3_bin64.txt', 'wt');
-    fileID_9  = fopen('file_c1_vdw12_e_order3_bin64.txt', 'wt');
-    if(m > 1)
-        fileID_10 = fopen('file_c2_vdw12_e_order3_bin64.txt', 'wt');
+    fileID_4  = fopen('file_c0_vdw8_f.txt', 'wt');
+    fileID_5  = fopen('file_c1_vdw8_f.txt', 'wt');
+    fileID_mif_4 = fopen('file_c0_vdw8_f.mif', 'wt');
+    fileID_mif_5 = fopen('file_c1_vdw8_f.mif', 'wt');
+    if(interpolation_order > 1)
+        fileID_6  = fopen('file_c2_vdw8_f.txt', 'wt');
+        fileID_mif_6 = fopen('file_c2_vdw8_f.mif', 'wt');
     end
-    if(m > 2)
-        fileID_11 = fopen('file_c3_vdw12_e_order3_bin64.txt', 'wt');
+    if(interpolation_order > 2)
+        fileID_7  = fopen('file_c3_vdw8_f.txt', 'wt');
+        fileID_mif_7 = fopen('file_c3_vdw8_f.mif', 'wt');
     end
     
-    fileID_12 = fopen('file_c0_vdw6_e_order3_bin64.txt', 'wt');
-    fileID_13 = fopen('file_c1_vdw6_e_order3_bin64.txt', 'wt');
-    if(m > 1)
-        fileID_14 = fopen('file_c2_vdw6_e_order3_bin64.txt', 'wt');
+    fileID_8  = fopen('file_c0_vdw12_e.txt', 'wt');
+    fileID_9  = fopen('file_c1_vdw12_e.txt', 'wt');
+    fileID_mif_8 = fopen('file_c0_vdw12_e.mif', 'wt');
+    fileID_mif_9 = fopen('file_c1_vdw12_e.mif', 'wt');
+    if(interpolation_order > 1)
+        fileID_10 = fopen('file_c2_vdw12_e.txt', 'wt');
+        fileID_mif_10 = fopen('file_c2_vdw12_e.mif', 'wt');
     end
-    if(m > 2)
-        fileID_15 = fopen('file_c3_vdw6_e_order3_bin64.txt', 'wt');
+    if(interpolation_order > 2)
+        fileID_11 = fopen('file_c3_vdw12_e.txt', 'wt');
+        fileID_mif_11 = fopen('file_c3_vdw12_e.mif', 'wt');
+    end
+    
+    fileID_12 = fopen('file_c0_vdw6_e.txt', 'wt');
+    fileID_13 = fopen('file_c1_vdw6_e.txt', 'wt');
+    fileID_mif_12 = fopen('file_c0_vdw6_e.mif', 'wt');
+    fileID_mif_13 = fopen('file_c1_vdw6_e.mif', 'wt');
+    if(interpolation_order > 1)
+        fileID_14 = fopen('file_c2_vdw6_e.txt', 'wt');
+        fileID_mif_14 = fopen('file_c2_vdw6_e.mif', 'wt');
+    end
+    if(interpolation_order > 2)
+        fileID_15 = fopen('file_c3_vdw6_e.txt', 'wt');
+        fileID_mif_15 = fopen('file_c3_vdw6_e.mif', 'wt');
     end
     
     count = 0;
@@ -72,13 +94,76 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
     range_min = min;
     range_max = 2*min;
     
+    %% Write the mif file header
+    fprintf(fileID_mif_0,'DEPTH = %d;\n',segment_num*bin_num);
+    fprintf(fileID_mif_0,'WIDTH = 32;\n');
+    fprintf(fileID_mif_0,'ADDRESS_RADIX = DEC;\n');
+    fprintf(fileID_mif_0,'DATA_RADIX = HEX;\n');
+    fprintf(fileID_mif_0,'CONTENT\n');
+    fprintf(fileID_mif_0,'BEGIN\n');
+    
+    fprintf(fileID_mif_1,'DEPTH = %d;\n',segment_num*bin_num);
+    fprintf(fileID_mif_1,'WIDTH = 32;\n');
+    fprintf(fileID_mif_1,'ADDRESS_RADIX = DEC;\n');
+    fprintf(fileID_mif_1,'DATA_RADIX = HEX;\n');
+    fprintf(fileID_mif_1,'CONTENT\n');
+    fprintf(fileID_mif_1,'BEGIN\n');
+    
+    fprintf(fileID_mif_4,'DEPTH = %d;\n',segment_num*bin_num);
+    fprintf(fileID_mif_4,'WIDTH = 32;\n');
+    fprintf(fileID_mif_4,'ADDRESS_RADIX = DEC;\n');
+    fprintf(fileID_mif_4,'DATA_RADIX = HEX;\n');
+    fprintf(fileID_mif_4,'CONTENT\n');
+    fprintf(fileID_mif_4,'BEGIN\n');
+    
+    fprintf(fileID_mif_5,'DEPTH = %d;\n',segment_num*bin_num);
+    fprintf(fileID_mif_5,'WIDTH = 32;\n');
+    fprintf(fileID_mif_5,'ADDRESS_RADIX = DEC;\n');
+    fprintf(fileID_mif_5,'DATA_RADIX = HEX;\n');
+    fprintf(fileID_mif_5,'CONTENT\n');
+    fprintf(fileID_mif_5,'BEGIN\n');
+    
+    if interpolation_order > 1
+        fprintf(fileID_mif_2,'DEPTH = %d;\n',segment_num*bin_num);
+        fprintf(fileID_mif_2,'WIDTH = 32;\n');
+        fprintf(fileID_mif_2,'ADDRESS_RADIX = DEC;\n');
+        fprintf(fileID_mif_2,'DATA_RADIX = HEX;\n');
+        fprintf(fileID_mif_2,'CONTENT\n');
+        fprintf(fileID_mif_2,'BEGIN\n');
+
+        fprintf(fileID_mif_6,'DEPTH = %d;\n',segment_num*bin_num);
+        fprintf(fileID_mif_6,'WIDTH = 32;\n');
+        fprintf(fileID_mif_6,'ADDRESS_RADIX = DEC;\n');
+        fprintf(fileID_mif_6,'DATA_RADIX = HEX;\n');
+        fprintf(fileID_mif_6,'CONTENT\n');
+        fprintf(fileID_mif_6,'BEGIN\n');
+    end
+    
+    if interpolation_order > 2
+        fprintf(fileID_mif_3,'DEPTH = %d;\n',segment_num*bin_num);
+        fprintf(fileID_mif_3,'WIDTH = 32;\n');
+        fprintf(fileID_mif_3,'ADDRESS_RADIX = DEC;\n');
+        fprintf(fileID_mif_3,'DATA_RADIX = HEX;\n');
+        fprintf(fileID_mif_3,'CONTENT\n');
+        fprintf(fileID_mif_3,'BEGIN\n');
+
+        fprintf(fileID_mif_7,'DEPTH = %d;\n',segment_num*bin_num);
+        fprintf(fileID_mif_7,'WIDTH = 32;\n');
+        fprintf(fileID_mif_7,'ADDRESS_RADIX = DEC;\n');
+        fprintf(fileID_mif_7,'DATA_RADIX = HEX;\n');
+        fprintf(fileID_mif_7,'CONTENT\n');
+        fprintf(fileID_mif_7,'BEGIN\n');
+    end
+    
+    
+    %% Start evaluation
     while(range_min < max)          % EACH SEGMENT
     
-        step = single((range_max-range_min)/n);
+        step = single((range_max-range_min)/bin_num);
         ca = single(range_min);
         cb = range_min + step;
     
-        for j=1:n                   % EACH BIN
+        for j=1:bin_num                   % EACH BIN
             x = zeros(precision,1);
 
             % for L-J Potential/Force
@@ -119,15 +204,16 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
                 inv_r8(i)  = inv_r6(i)  * (ds -  6*s*inv_r2);
             end
 
-            r14_func = polyfit(x,inv_r14,m);
-            r8_func  = polyfit(x,inv_r8,m);
-            r12_func = polyfit(x,inv_r12,m);
-            r6_func  = polyfit(x,inv_r6,m);
+            r14_func = polyfit(x,inv_r14,interpolation_order);
+            r8_func  = polyfit(x,inv_r8,interpolation_order);
+            r12_func = polyfit(x,inv_r12,interpolation_order);
+            r6_func  = polyfit(x,inv_r6,interpolation_order);
             
             ncoef=length(r14_func);
             
-            switch(m)
+            switch(interpolation_order)
                 case 1
+                    % write to file for verification
                     fprintf(fileID_0,'%15.25f\n',r14_func(2));
                     fprintf(fileID_1,'%15.25f\n',r14_func(1));
 
@@ -140,7 +226,21 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
                     fprintf(fileID_12,'%15.25f\n',r6_func(2));
                     fprintf(fileID_13,'%15.25f\n',r6_func(1));
                     
+                    % write to file for mif
+                    fprintf(fileID_mif_0,'%d : %tX;\n',count, r14_func(2));
+                    fprintf(fileID_mif_1,'%d : %tX;\n',count, r14_func(1));
+
+                    fprintf(fileID_mif_4,'%d : %tX;\n',count, r8_func(2));
+                    fprintf(fileID_mif_5,'%d : %tX;\n',count, r8_func(1));
+
+                    fprintf(fileID_mif_8,'%d : %tX;\n',count, r12_func(2));
+                    fprintf(fileID_mif_9,'%d : %tX;\n',count, r12_func(1));
+
+                    fprintf(fileID_mif_12,'%d : %tX;\n',count, r6_func(2));
+                    fprintf(fileID_mif_13,'%d : %tX;\n',count, r6_func(1));
+                    
                 case 2
+                    % write to file for verification
                     fprintf(fileID_0,'%15.25f\n',r14_func(3));
                     fprintf(fileID_1,'%15.25f\n',r14_func(2));
                     fprintf(fileID_2,'%15.25f\n',r14_func(1)); 
@@ -157,7 +257,25 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
                     fprintf(fileID_13,'%15.25f\n',r6_func(2));
                     fprintf(fileID_14,'%15.25f\n',r6_func(1));
                     
+                    % write to file for mif
+                    fprintf(fileID_mif_0,'%d : %tX;\n',count, r14_func(3));
+                    fprintf(fileID_mif_1,'%d : %tX;\n',count, r14_func(2));
+                    fprintf(fileID_mif_2,'%d : %tX;\n',count, r14_func(1));
+
+                    fprintf(fileID_mif_4,'%d : %tX;\n',count, r8_func(3));
+                    fprintf(fileID_mif_5,'%d : %tX;\n',count, r8_func(2));
+                    fprintf(fileID_mif_6,'%d : %tX;\n',count, r8_func(1));
+
+                    fprintf(fileID_mif_8,'%d : %tX;\n',count, r12_func(3));
+                    fprintf(fileID_mif_9,'%d : %tX;\n',count, r12_func(2));
+                    fprintf(fileID_mif_10,'%d : %tX;\n',count, r12_func(1));
+
+                    fprintf(fileID_mif_12,'%d : %tX;\n',count, r6_func(3));
+                    fprintf(fileID_mif_13,'%d : %tX;\n',count, r6_func(2));
+                    fprintf(fileID_mif_14,'%d : %tX;\n',count, r6_func(1));
+                    
                 case 3
+                    % write to file for verification
                     fprintf(fileID_0,'%15.25f\n',r14_func(4));
                     fprintf(fileID_1,'%15.25f\n',r14_func(3));
                     fprintf(fileID_2,'%15.25f\n',r14_func(2)); 
@@ -177,6 +295,27 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
                     fprintf(fileID_13,'%15.25f\n',r6_func(3));
                     fprintf(fileID_14,'%15.25f\n',r6_func(2));
                     fprintf(fileID_15,'%15.25f\n',r6_func(1));
+                    
+                    % write to file for mif
+                    fprintf(fileID_mif_0,'%d : %tX;\n',count, r14_func(4));
+                    fprintf(fileID_mif_1,'%d : %tX;\n',count, r14_func(3));
+                    fprintf(fileID_mif_2,'%d : %tX;\n',count, r14_func(2));
+                    fprintf(fileID_mif_3,'%d : %tX;\n',count, r14_func(1));
+
+                    fprintf(fileID_mif_4,'%d : %tX;\n',count, r8_func(4));
+                    fprintf(fileID_mif_5,'%d : %tX;\n',count, r8_func(3));
+                    fprintf(fileID_mif_6,'%d : %tX;\n',count, r8_func(2));
+                    fprintf(fileID_mif_7,'%d : %tX;\n',count, r8_func(1));
+
+                    fprintf(fileID_mif_8,'%d : %tX;\n',count, r12_func(4));
+                    fprintf(fileID_mif_9,'%d : %tX;\n',count, r12_func(3));
+                    fprintf(fileID_mif_10,'%d : %tX;\n',count, r12_func(2));
+                    fprintf(fileID_mif_11,'%d : %tX;\n',count, r12_func(1));
+
+                    fprintf(fileID_mif_12,'%d : %tX;\n',count, r6_func(4));
+                    fprintf(fileID_mif_13,'%d : %tX;\n',count, r6_func(3));
+                    fprintf(fileID_mif_14,'%d : %tX;\n',count, r6_func(2));
+                    fprintf(fileID_mif_15,'%d : %tX;\n',count, r6_func(1));
             end
             
             %fprintf(fileID_0,'%d\t:\t%tx;\n', count, r14_func(4));
@@ -207,6 +346,22 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
         range_max = range_max * 2;
     end
     
+    %% Write the end of mif file
+    fprintf(fileID_mif_0,'END;\n');
+    fprintf(fileID_mif_1,'END;\n');
+    fprintf(fileID_mif_4,'END;\n');
+    fprintf(fileID_mif_5,'END;\n');
+    if interpolation_order > 1
+        fprintf(fileID_mif_2,'END;\n');
+        fprintf(fileID_mif_6,'END;\n');
+    end
+    if interpolation_order > 2
+        fprintf(fileID_mif_3,'END;\n');
+        fprintf(fileID_mif_7,'END;\n');
+    end
+    
+    
+    %% Close the files
     fclose(fileID_0);
     fclose(fileID_1);
     fclose(fileID_4);
@@ -215,18 +370,37 @@ function  LJ_poly_interpolation_function(m,n,precision,min,max,cutoff,switchon)
     fclose(fileID_9);
     fclose(fileID_12);
     fclose(fileID_13);
+    
+    fclose(fileID_mif_0);
+    fclose(fileID_mif_1);
+    fclose(fileID_mif_4);
+    fclose(fileID_mif_5);
+    fclose(fileID_mif_8);
+    fclose(fileID_mif_9);
+    fclose(fileID_mif_12);
+    fclose(fileID_mif_13);
 
-    if m > 1
+    if interpolation_order > 1
         fclose(fileID_2);
         fclose(fileID_6);
         fclose(fileID_10);
         fclose(fileID_14);
+        
+        fclose(fileID_mif_2);
+        fclose(fileID_mif_6);
+        fclose(fileID_mif_10);
+        fclose(fileID_mif_14);
     end
     
-    if m > 2
+    if interpolation_order > 2
         fclose(fileID_3);
         fclose(fileID_7);
         fclose(fileID_11);
         fclose(fileID_15);
+        
+        fclose(fileID_mif_3);
+        fclose(fileID_mif_7);
+        fclose(fileID_mif_11);
+        fclose(fileID_mif_15);
     end
     

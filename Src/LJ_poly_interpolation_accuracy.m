@@ -13,8 +13,9 @@ clear all;
 % Boston University, CAAD Lab
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% m: interpolation order
-% bin: # of bins per segment
+% interpolation_order: interpolation order
+% segment_num: # of large sections we have
+% bin_num: # of bins per segment
 % precision: # of datapoints for each interpolation
 % min, max : range of distance
 
@@ -22,7 +23,7 @@ interpolation_order = 1;                % interpolation order, no larger than 3
 segment_num = 12;                       % # of segment
 bin_num = 256;                          % # of bins per segment
 precision = 8;                          % # of datepoints when generating the polynomial index 
-min_range = 0.01;                       % minimal range for the evaluation
+min_range = 1;                          % minimal range for the evaluation
 max_range = min_range * 2^segment_num;  % maximum range for the evaluation (currently this is the cutoff radius)
 
 cutoff = single(max_range);             % Cut-off radius
@@ -34,23 +35,23 @@ denom = 1 / inv_denom;
 
 r2 = single(min_range:0.01:max_range-0.01);
 
-% initialize variables
-inv_r2 = single(zeros(length(r2),1));
-inv_r4 = single(zeros(length(r2),1));
-inv_r6 = single(zeros(length(r2),1));
-inv_r12 = single(zeros(length(r2),1));
-inv_r8 = single(zeros(length(r2),1));
-inv_r14 = single(zeros(length(r2),1));
-s = single(zeros(length(r2),1));
-ds = single(zeros(length(r2),1));
-Fvdw_real = single(zeros(length(r2),1));
-Fvdw_poly = single(zeros(size(r2,2),1));
+% initialize variables (in double precision)
+inv_r2 = zeros(length(r2),1);
+inv_r4 = zeros(length(r2),1);
+inv_r6 = zeros(length(r2),1);
+inv_r12 = zeros(length(r2),1);
+inv_r8 = zeros(length(r2),1);
+inv_r14 = zeros(length(r2),1);
+s = zeros(length(r2),1);
+ds = zeros(length(r2),1);
+Fvdw_real = zeros(length(r2),1);
+Fvdw_poly = zeros(size(r2,2),1);
 
 % Coefficient gen (random number), independent of r
 Aij = 8;
 Bij = 6;
 
-%% Evaluate the real result in single precision
+%% Evaluate the real result in single precision (in double precision)
 for i = 1:size(r2,2)
     % smooth function
     if(r2(i) <= switchon2)
@@ -82,39 +83,64 @@ for i = 1:size(r2,2)
 end
 
 %% Generate the interpolation table (only need to run this once if the interpolation parameter remains)
-LJ_poly_interpolation_function(interpolation_order,bin_num,precision,min_range,max_range,cutoff,switchon);
+LJ_poly_interpolation_function(interpolation_order,segment_num, bin_num,precision,min_range,max_range,cutoff,switchon);
+Col_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min_range,max_range);
 
 %% Evaluate the interpolation result
 % Load in the index data
-fileID_0  = fopen('file_c0_vdw14_f_order3_bin64.txt', 'r');
-fileID_1  = fopen('file_c1_vdw14_f_order3_bin64.txt', 'r');
-fileID_2  = fopen('file_c2_vdw14_f_order3_bin64.txt', 'r');
-fileID_3  = fopen('file_c3_vdw14_f_order3_bin64.txt', 'r');
+fileID_0  = fopen('file_c0_vdw14_f.txt', 'r');
+fileID_1  = fopen('file_c1_vdw14_f.txt', 'r');
+if interpolation_order > 1
+    fileID_2  = fopen('file_c2_vdw14_f.txt', 'r');
+end
+if interpolation_order > 2
+    fileID_3  = fopen('file_c3_vdw14_f.txt', 'r');
+end
 
-fileID_4  = fopen('file_c0_vdw8_f_order3_bin64.txt', 'r');
-fileID_5  = fopen('file_c1_vdw8_f_order3_bin64.txt', 'r');
-fileID_6  = fopen('file_c2_vdw8_f_order3_bin64.txt', 'r');
-fileID_7  = fopen('file_c3_vdw8_f_order3_bin64.txt', 'r');
+fileID_4  = fopen('file_c0_vdw8_f.txt', 'r');
+fileID_5  = fopen('file_c1_vdw8_f.txt', 'r');
+if interpolation_order > 1
+    fileID_6  = fopen('file_c2_vdw8_f.txt', 'r');
+end
+if interpolation_order > 2
+    fileID_7  = fopen('file_c3_vdw8_f.txt', 'r');
+end
 
 % Fetch the index for the polynomials
 read_in_c0_vdw14 = textscan(fileID_0, '%f');
 read_in_c1_vdw14 = textscan(fileID_1, '%f');
-read_in_c2_vdw14 = textscan(fileID_2, '%f');
-read_in_c3_vdw14 = textscan(fileID_3, '%f');
+if interpolation_order > 1
+    read_in_c2_vdw14 = textscan(fileID_2, '%f');
+end
+if interpolation_order > 2
+    read_in_c3_vdw14 = textscan(fileID_3, '%f');
+end
 read_in_c0_vdw8 = textscan(fileID_4, '%f');
 read_in_c1_vdw8 = textscan(fileID_5, '%f');
-read_in_c2_vdw8 = textscan(fileID_6, '%f');
-read_in_c3_vdw8 = textscan(fileID_7, '%f');
+if interpolation_order > 1
+    read_in_c2_vdw8 = textscan(fileID_6, '%f');
+end
+if interpolation_order > 2
+    read_in_c3_vdw8 = textscan(fileID_7, '%f');
+end
 
 % close file
 fclose(fileID_0);
 fclose(fileID_1);
-fclose(fileID_2);
-fclose(fileID_3);
+if interpolation_order > 1
+    fclose(fileID_2);
+end
+if interpolation_order > 2
+    fclose(fileID_3);
+end
 fclose(fileID_4);
 fclose(fileID_5);
-fclose(fileID_6);
-fclose(fileID_7);
+if interpolation_order > 1
+    fclose(fileID_6);
+end
+if interpolation_order > 2
+    fclose(fileID_7);
+end
 
 % Start evaluation
 for i = 1:size(r2,2)
