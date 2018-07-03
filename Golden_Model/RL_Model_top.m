@@ -17,6 +17,8 @@
 %% Global variables
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
+% Calculation Mode
+CALCULATION_MODE = 'direct';                            % Calculation mode: 'direct' or 'table'
 % Benmarck Parameters
 CELL_COUNT_X = 9;
 CELL_COUNT_Y = 9;
@@ -178,8 +180,23 @@ for home_cell_x = 1:CELL_COUNT_X
                                     inv_dist_4 = inv_dist_2 ^ 2;
                                     inv_dist_8 = inv_dist_4 ^ 2;
                                     inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
+<<<<<<< HEAD
                                     Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
                                     LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+=======
+                                    %% Force evaluation (??????????????????? Is the formular here right ??????????????????)
+                                    % Direct computation
+                                    if strcmp(CALCULATION_MODE, 'direct')
+                                        Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                                        LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+                                    % Table look-up
+                                    elseif strcmp(CALCULATION_MODE, 'table')
+                                     
+                                    else
+                                        fprintf('Please select a valid force evaluation mode: direct or table...\n');
+                                        exit;
+                                    end
+>>>>>>> c7d2fc3beda74406b436099141e8ca50df3ff7fc
                                     
                                     % Accumulate the force
                                     Force_Acc = Force_Acc + Coulomb_Force + LJ_Force;
