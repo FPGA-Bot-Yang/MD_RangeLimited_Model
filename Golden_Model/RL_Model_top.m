@@ -18,7 +18,9 @@
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
 % Calculation Mode
-CALCULATION_MODE = 'direct';                            % Calculation mode: 'direct' or 'table'
+CALCULATION_MODE = 'direct';                                    % Select Calculation mode between 'direct' or 'table'
+% Select Force Model
+FORCE_MODEL = 'OpenMM';                                         % Select force model between 'OpenMM' or 'CAAD'
 % Benmarck Parameters
 CELL_COUNT_X = 9;
 CELL_COUNT_Y = 9;
@@ -28,6 +30,8 @@ TOTAL_PARTICLE = 92224;                                         % particle count
 % Processing Parameters
 CUTOFF_RADIUS = 12;                                             % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
+INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
+SWITCH_DIST = 10;                                               % Switch distance for LJ evaluation
 % MD related Parameters (source:https://github.com/pandegroup/openmm/blob/master/wrappers/python/tests/systems/test_amber_ff.xml)
 EPSILON = 0.065689*0.878640;                                    % EPS(H) * EPS(O)
 SIGMA = 0.247135+0.295992;                                      % SIG(H) + SIG(O)
@@ -35,6 +39,11 @@ CC = 332.0636;                                                  % Coulomb consta
 EWALD_COEF = 0.257952;
 EWALD_COEF_2 = EWALD_COEF * EWALD_COEF;
 GRAD_COEF = 0.291067;
+ONE_4PI_EPS0 = 138.935456;                                      % Coulomb constant, unit kJ/nm
+SOLVENT_DIELECTRIC = 80;                                        % Dielectric constant of the solvent, in water, value is 80
+Q1 = 1;                                                         % Charge 1 (serve as placeholder)
+Q2 = 2;                                                         % Charge 2 (serve as placeholder)
+
 
 %% Load the data from input file
 input_file_path = strcat(common_path, input_position_file_name);
@@ -84,6 +93,14 @@ fprintf('Particles mapping to cells finished! Total of %d particles falling out 
 %% Filtering & Force Evaluation
 %%%%%%%%%%%%%%%%%%% In the current implementation, traverse through all the 27 neighbor cells for simple accumulation %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 fprintf('*** Filtering and evaluation starts! ***\n');
+switch FORCE_MODEL
+    case 'OpenMM'
+        fprintf('Starting evaluation using the OpenMM force model! (http://docs.openmm.org/6.2.0/userguide/theory.html)\n');
+    case 'CAAD'
+        fprintf('Starting evaluation using the CAAD Lab force model! (https://www.bu.edu/caadlab/hprcta10_tc.pdf)\n');
+    otherwise
+        fprintf('Invalid force model!\n');
+end
 force_write_back_counter = 0;       % Profiling variable to record how many neighbor particles has been calculated
 % Loopping into each cell
 for home_cell_x = 1:CELL_COUNT_X
@@ -119,8 +136,9 @@ for home_cell_x = 1:CELL_COUNT_X
             
             %% Select each particle in home cell as reference particle, traver all the particles in home cells
             for ref_particle_ptr = 1:home_particle_counter
-                % Initialize the force value as 0 for each reference particle
+                % Initialize the force and energy value as 0 for each reference particle
                 Force_Acc = 0;
+                Energy_Acc = 0;
                 % Initialize the counter for recording how many neighboring particles within the cutoff radius
                 particles_within_cutoff = 0;
                 
@@ -168,38 +186,93 @@ for home_cell_x = 1:CELL_COUNT_X
                                 dist_y_2 = (neighbor_particle_pos_y - ref_particle_pos_y)^2;
                                 dist_z_2 = (neighbor_particle_pos_z - ref_particle_pos_z)^2;
                                 dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
+                                dist = sqrt(dist_2);
+                                inv_dist = 1 / dist;
                                 
-                                % Filtering, and direct force evaluation
-                                A = 12 * EPSILON *(SIGMA^12);
-                                B = 6 * EPSILON *(SIGMA^6);
-                                if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-                                    % increment the counter
-                                    particles_within_cutoff = particles_within_cutoff + 1;
-                                    % Force calculate (??????????????????? Is the formular here right ??????????????????)
-                                    inv_dist_2 = 1 / dist_2;
-                                    inv_dist_4 = inv_dist_2 ^ 2;
-                                    inv_dist_8 = inv_dist_4 ^ 2;
-                                    inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
-<<<<<<< HEAD
-                                    Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-                                    LJ_Force = A * inv_dist_14 - B * inv_dist_8;
-=======
-                                    %% Force evaluation (??????????????????? Is the formular here right ??????????????????)
-                                    % Direct computation
-                                    if strcmp(CALCULATION_MODE, 'direct')
-                                        Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-                                        LJ_Force = A * inv_dist_14 - B * inv_dist_8;
-                                    % Table look-up
-                                    elseif strcmp(CALCULATION_MODE, 'table')
-                                     
-                                    else
-                                        fprintf('Please select a valid force evaluation mode: direct or table...\n');
+                                %% Filtering, and direct force evaluation
+                                switch FORCE_MODEL
+                                    case 'OpenMM'
+                                        % Calculate the switch function value
+                                        x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                        if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                                            Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
+                                            Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                        elseif dist >= 0 && dist < SWITCH_DIST
+                                            Switch_Val = 1;
+                                            Switch_Deri = 0;
+                                        else
+                                            Switch_Val = 0;
+                                            Switch_Deri = 0;
+                                        end
+                                        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+                                            % increment the counter
+                                            particles_within_cutoff = particles_within_cutoff + 1;
+
+                                            %% Force evaluation
+                                            sigma_6 = SIGMA^6 / dist_2^3;
+                                            sigma_12 = sigma_6^2;
+                                            krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
+                                            crf = (1 / CUTOFF_RADIUS) * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
+                                            % Direct computation
+                                            if strcmp(CALCULATION_MODE, 'direct')
+                                                %% Energy
+                                                % LJ Potential
+                                                LJ_Energy = Switch_Val * (EPSILON*sigma_12  - EPSILON*sigma_6);
+                                                % Coulomb Potential
+                                                chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
+                                                Coulomb_Energy = chargeProd * (inv_dist + krf * dist_2 - crf);
+                                                Total_Energy = LJ_Energy + Coulomb_Energy;
+                                                %% Force
+                                                LJ_Force = Switch_Val * (12*EPSILON*sigma_12  - 6*EPSILON*sigma_6) * inv_dist^2;
+                                                Coulomb_Froce = chargeProd * (inv_dist - 2*krf*dist_2) * inv_dist^2;
+                                                % Apply switch condition for LJ force
+                                                Total_Force = Coulomb_Force + LJ_Force - Switch_Deri*(EPSILON*sigma_12  - EPSILON*sigma_6)*inv_dist;
+                                            % Table look-up
+                                            elseif strcmp(CALCULATION_MODE, 'table')
+
+                                            else
+                                                fprintf('Please select a valid force evaluation mode: direct or table...\n');
+                                                exit;
+                                            end
+
+                                            % Accumulate the force & energy
+                                            Energy_Acc = Energy_Acc + Total_Energy;
+                                            Force_Acc = Force_Acc + Total_Force;
+                                        end
+                                    case 'CAAD'
+                                        A = 12 * EPSILON *(SIGMA^12);
+                                        B = 6 * EPSILON *(SIGMA^6);
+                                        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+                                            % increment the counter
+                                            particles_within_cutoff = particles_within_cutoff + 1;
+                                            % Force calculate (??????????????????? Is the formular here right ??????????????????)
+                                            inv_dist_2 = 1 / dist_2;
+                                            inv_dist_4 = inv_dist_2 ^ 2;
+                                            inv_dist_8 = inv_dist_4 ^ 2;
+                                            inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
+
+                                            Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                                            LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+
+                                            %% Force evaluation (??????????????????? Is the formular here right ??????????????????)
+                                            % Direct computation
+                                            if strcmp(CALCULATION_MODE, 'direct')
+                                                Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                                                LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+                                            % Table look-up
+                                            elseif strcmp(CALCULATION_MODE, 'table')
+
+                                            else
+                                                fprintf('Please select a valid force evaluation mode: direct or table...\n');
+                                                exit;
+                                            end
+
+                                            % Accumulate the force
+                                            Force_Acc = Force_Acc + Coulomb_Force + LJ_Force;
+                                        end
+                                    otherwise
+                                        fprintf('Please select a valid force model between OpenMM or CAAD!\n');
                                         exit;
-                                    end
->>>>>>> c7d2fc3beda74406b436099141e8ca50df3ff7fc
-                                    
-                                    % Accumulate the force
-                                    Force_Acc = Force_Acc + Coulomb_Force + LJ_Force;
                                 end
                             end
                         end
