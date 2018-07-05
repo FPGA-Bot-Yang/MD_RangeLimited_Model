@@ -33,8 +33,8 @@ CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distanc
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
 SWITCH_DIST = 10;                                               % Switch distance for LJ evaluation
 % MD related Parameters (source:https://github.com/pandegroup/openmm/blob/master/wrappers/python/tests/systems/test_amber_ff.xml)
-EPSILON = 0.065689*0.878640;                                    % EPS(H) * EPS(O)
-SIGMA = 0.247135+0.295992;                                      % SIG(H) + SIG(O)
+EPSILON = sqrt(0.065689*0.878640);                              % sqrt[EPS(H) * EPS(O)]
+SIGMA = (0.247135+0.295992)/2;                                  % [SIG(H) + SIG(O)] / 2
 CC = 332.0636;                                                  % Coulomb constant * Charge1 * Charge2
 EWALD_COEF = 0.257952;
 EWALD_COEF_2 = EWALD_COEF * EWALD_COEF;
@@ -209,24 +209,31 @@ for home_cell_x = 1:CELL_COUNT_X
                                             particles_within_cutoff = particles_within_cutoff + 1;
 
                                             %% Force evaluation
-                                            sigma_6 = SIGMA^6 / dist_2^3;
+                                            sigma_6 = SIGMA^6;
                                             sigma_12 = sigma_6^2;
+                                            inv_dist_2 = 1 / dist_2;
+                                            inv_dist_6 = inv_dist_2 ^ 3;
+                                            inv_dist_12 = inv_dist_6 ^ 2;
                                             krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
                                             crf = (1 / CUTOFF_RADIUS) * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
                                                 % LJ Potential
-                                                LJ_Energy = Switch_Val * (EPSILON*sigma_12  - EPSILON*sigma_6);
+                                                LJ_Energy = Switch_Val * 4 * (EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6);
                                                 % Coulomb Potential
                                                 chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
                                                 Coulomb_Energy = chargeProd * (inv_dist + krf * dist_2 - crf);
+                                                % Total energy
                                                 Total_Energy = LJ_Energy + Coulomb_Energy;
                                                 %% Force
-                                                LJ_Force = Switch_Val * (12*EPSILON*sigma_12  - 6*EPSILON*sigma_6) * inv_dist^2;
-                                                Coulomb_Froce = chargeProd * (inv_dist - 2*krf*dist_2) * inv_dist^2;
+                                                LJ_Force = Switch_Val * 4 * (12*EPSILON*sigma_12*inv_dist_12  - 6*EPSILON*sigma_6*inv_dist_6) * inv_dist;
                                                 % Apply switch condition for LJ force
-                                                Total_Force = Coulomb_Force + LJ_Force - Switch_Deri*(EPSILON*sigma_12  - EPSILON*sigma_6)*inv_dist;
+                                                LJ_Force = LJ_Force - Switch_Deri*4*(EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6);
+                                                % Coulomb Force
+                                                Coulomb_Froce = chargeProd * (inv_dist - 2*krf*dist_2) * inv_dist;
+                                                % Total force
+                                                Total_Force = Coulomb_Force + LJ_Force;
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
 
