@@ -70,7 +70,8 @@ fprintf('All particles shifted to align on (0,0,0)\n');
 fprintf('*** Start mapping paricles to cells! ***\n');
 % Bounding box of 12A, total of 9*9*7 cells, organized in a 4D array
 particle_in_cell_counter = zeros(CELL_COUNT_X,CELL_COUNT_Y,CELL_COUNT_Z);               % counters tracking the # of particles in each cell
-cell_particle = zeros(CELL_COUNT_X*CELL_COUNT_Y*CELL_COUNT_Z,CELL_PARTICLE_MAX,5);      % 3D array holding sorted cell particles(cell_id, particle_id, particle_info), cell_id = (cell_x-1)*9*7+(cell_y-1)*7+cell_z
+cell_particle = zeros(CELL_COUNT_X*CELL_COUNT_Y*CELL_COUNT_Z,CELL_PARTICLE_MAX,8);      % 3D array holding sorted cell particles(cell_id, particle_id, particle_info), cell_id = (cell_x-1)*9*7+(cell_y-1)*7+cell_z
+                                                                                        % Patticle info: 1~3:position, 4~6:force component in each direction, 7: energy, 8:# of partner particles
 out_range_particle_counter = 0;
 for i = 1:TOTAL_PARTICLE
     % determine the cell each particle belongs to
@@ -139,7 +140,9 @@ for home_cell_x = 1:CELL_COUNT_X
             %% Select each particle in home cell as reference particle, traver all the particles in home cells
             for ref_particle_ptr = 1:home_particle_counter
                 % Initialize the force and energy value as 0 for each reference particle
-                Force_Acc = 0;
+                Force_Acc_x = 0;
+                Force_Acc_y = 0;
+                Force_Acc_z = 0;
                 Energy_Acc = 0;
                 % Initialize the counter for recording how many neighboring particles within the cutoff radius
                 particles_within_cutoff = 0;
@@ -184,9 +187,12 @@ for home_cell_x = 1:CELL_COUNT_X
                                 end
                                 
                                 % Calculate the distance square btw the reference particle and parter particle
-                                dist_x_2 = (neighbor_particle_pos_x - ref_particle_pos_x)^2;
-                                dist_y_2 = (neighbor_particle_pos_y - ref_particle_pos_y)^2;
-                                dist_z_2 = (neighbor_particle_pos_z - ref_particle_pos_z)^2;
+                                dist_x = abs(neighbor_particle_pos_x - ref_particle_pos_x);
+                                dist_y = abs(neighbor_particle_pos_y - ref_particle_pos_y);
+                                dist_z = abs(neighbor_particle_pos_z - ref_particle_pos_z);
+                                dist_x_2 = dist_x^2;
+                                dist_y_2 = dist_y^2;
+                                dist_z_2 = dist_x^2;
                                 dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
                                 dist = sqrt(dist_2);
                                 inv_dist = 1 / dist;
@@ -217,8 +223,11 @@ for home_cell_x = 1:CELL_COUNT_X
                                             sigma_6 = SIGMA^6;
                                             sigma_12 = sigma_6^2;
                                             inv_dist_2 = 1 / dist_2;
+                                            inv_dist_3 = inv_dist_2 / dist;
                                             inv_dist_6 = inv_dist_2 ^ 3;
                                             inv_dist_12 = inv_dist_6 ^ 2;
+                                            inv_dist_8 = inv_dist_6 * inv_dist_2;
+                                            inv_dist_14 = inv_dist_6 * inv_dist_8;
                                             % Coulomb interaction with cutoff using reaction field approximation
                                             krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
                                             crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
@@ -232,14 +241,15 @@ for home_cell_x = 1:CELL_COUNT_X
                                                 Coulomb_Energy = chargeProd * (inv_dist + krf * dist_2 - crf);
                                                 % Total energy
                                                 Total_Energy = LJ_Energy + Coulomb_Energy;
-                                                %% Force
-                                                LJ_Force = Switch_Val * 4 * (12*EPSILON*sigma_12*inv_dist_12  - 6*EPSILON*sigma_6*inv_dist_6) * inv_dist;
+                                                %% Force (The force calculate here is F/r, for easy calculation of force component on each axis)
+                                                % LJ force over R
+                                                LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
                                                 % Apply switch condition for LJ force
-                                                LJ_Force = LJ_Force - Switch_Deri*4*(EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6);
-                                                % Coulomb Force
-                                                Coulomb_Force = chargeProd * (inv_dist_2 - 2*krf*dist]);
-                                                % Total force
-                                                Total_Force = Coulomb_Force + LJ_Force;
+                                                LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
+                                                % Coulomb Force over R
+                                                Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
+                                                % Total force over R
+                                                Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
                                                 fprintf('Table lookup version for OpenMM force model is under construction......\n');
@@ -251,7 +261,14 @@ for home_cell_x = 1:CELL_COUNT_X
 
                                             % Accumulate the force & energy
                                             Energy_Acc = Energy_Acc + Total_Energy;
-                                            Force_Acc = Force_Acc + Total_Force;
+                                            % Total force component in each direction
+                                            Total_Force_x = Total_Force_over_R * dist_x;
+                                            Total_Force_y = Total_Force_over_R * dist_y;
+                                            Total_Force_z = Total_Force_over_R * dist_z;
+                                            % Accumulate force in each direction
+                                            Force_Acc_x = Force_Acc_x + Total_Force_x;
+                                            Force_Acc_y = Force_Acc_y + Total_Force_y;
+                                            Force_Acc_z = Force_Acc_z + Total_Force_z;
                                         end
                                         
                                     % Follow the force model from CAAD lab publications:
@@ -270,14 +287,12 @@ for home_cell_x = 1:CELL_COUNT_X
                                             inv_dist_8 = inv_dist_4 ^ 2;
                                             inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
 
-                                            Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-                                            LJ_Force = A * inv_dist_14 - B * inv_dist_8;
-
                                             %% Force evaluation (??????????????????? Is the formular here right ??????????????????)
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
-                                                Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-                                                LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+                                                Coulomb_Force_over_R = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                                                LJ_Force_over_R = A * inv_dist_14 - B * inv_dist_8;
+                                                Total_Force_over_R = Coulomb_Force_over_R + LJ_Force_over_R;
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
                                                 fprintf('Table lookup version for CAAD force model is under construction......\n');
@@ -288,7 +303,9 @@ for home_cell_x = 1:CELL_COUNT_X
                                             end
 
                                             % Accumulate the force
-                                            Force_Acc = Force_Acc + Coulomb_Force + LJ_Force;
+                                            Force_Acc_x = Force_Acc_x + Total_Force_over_R * dist_x;
+                                            Force_Acc_y = Force_Acc_y + Total_Force_over_R * dist_y;
+                                            Force_Acc_z = Force_Acc_z + Total_Force_over_R * dist_z;
                                         end
                                     otherwise
                                         fprintf('Please select a valid force model between OpenMM or CAAD!\n');
@@ -298,9 +315,12 @@ for home_cell_x = 1:CELL_COUNT_X
                         end
                     end
                 end
-                % Assign the total force to cell_particle
-                cell_particle(home_cell_id,ref_particle_ptr,4) = Force_Acc;
-                cell_particle(home_cell_id,ref_particle_ptr,5) = particles_within_cutoff;
+                % Assign the force and energy to cell_particle
+                cell_particle(home_cell_id,ref_particle_ptr,4) = Force_Acc_x;
+                cell_particle(home_cell_id,ref_particle_ptr,5) = Force_Acc_y;
+                cell_particle(home_cell_id,ref_particle_ptr,6) = Force_Acc_z;
+                cell_particle(home_cell_id,ref_particle_ptr,7) = Energy_Acc;
+                cell_particle(home_cell_id,ref_particle_ptr,8) = particles_within_cutoff;
                 force_write_back_counter = force_write_back_counter + 1;        % Profiling variable to record how many neighbor particles has been calculated
             end
             
