@@ -1,6 +1,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Range limited force evaluation model (currently in single precision floating point)
 %% Use this script to get the variable range at each step, using that range to map the data from floating point to fixed point for on-board implementation
+%% Implemented 2 force models: OpenMM (https://github.com/pandegroup/openmm) and CAAD Lab
 %% 
 %% By: Chen Yang
 %% CAAD Lab, Boston Univerisity
@@ -30,6 +31,7 @@ TOTAL_PARTICLE = 92224;                                         % particle count
 % Processing Parameters
 CUTOFF_RADIUS = 12;                                             % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
+INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
 SWITCH_DIST = 10;                                               % Switch distance for LJ evaluation
 % MD related Parameters (source:https://github.com/pandegroup/openmm/blob/master/wrappers/python/tests/systems/test_amber_ff.xml)
@@ -191,8 +193,11 @@ for home_cell_x = 1:CELL_COUNT_X
                                 
                                 %% Filtering, and direct force evaluation
                                 switch FORCE_MODEL
+                                    % Follow the force model in OpenMM:
+                                    % https://github.com/pandegroup/openmm/blob/master/tests/TestNonbondedForce.h
+                                    % Applied cutoff and switch function, but no PME
                                     case 'OpenMM'
-                                        % Calculate the switch function value
+                                        % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
                                         x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
                                         if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
                                             Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
@@ -214,8 +219,9 @@ for home_cell_x = 1:CELL_COUNT_X
                                             inv_dist_2 = 1 / dist_2;
                                             inv_dist_6 = inv_dist_2 ^ 3;
                                             inv_dist_12 = inv_dist_6 ^ 2;
+                                            % Coulomb interaction with cutoff using reaction field approximation
                                             krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
-                                            crf = (1 / CUTOFF_RADIUS) * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
+                                            crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
@@ -231,12 +237,13 @@ for home_cell_x = 1:CELL_COUNT_X
                                                 % Apply switch condition for LJ force
                                                 LJ_Force = LJ_Force - Switch_Deri*4*(EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6);
                                                 % Coulomb Force
-                                                Coulomb_Froce = chargeProd * (inv_dist - 2*krf*dist_2) * inv_dist;
+                                                Coulomb_Force = chargeProd * (inv_dist_2 - 2*krf*dist]);
                                                 % Total force
                                                 Total_Force = Coulomb_Force + LJ_Force;
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
-
+                                                fprintf('Table lookup version for OpenMM force model is under construction......\n');
+                                                exit;
                                             else
                                                 fprintf('Please select a valid force evaluation mode: direct or table...\n');
                                                 exit;
@@ -246,6 +253,11 @@ for home_cell_x = 1:CELL_COUNT_X
                                             Energy_Acc = Energy_Acc + Total_Energy;
                                             Force_Acc = Force_Acc + Total_Force;
                                         end
+                                        
+                                    % Follow the force model from CAAD lab publications:
+                                    % https://ieeexplore.ieee.org/document/5771251/
+                                    % https://ieeexplore.ieee.org/document/5670800/
+                                    % Applied cutoff and switch function, and PME
                                     case 'CAAD'
                                         A = 12 * EPSILON *(SIGMA^12);
                                         B = 6 * EPSILON *(SIGMA^6);
@@ -268,7 +280,8 @@ for home_cell_x = 1:CELL_COUNT_X
                                                 LJ_Force = A * inv_dist_14 - B * inv_dist_8;
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
-
+                                                fprintf('Table lookup version for CAAD force model is under construction......\n');
+                                                exit;
                                             else
                                                 fprintf('Please select a valid force evaluation mode: direct or table...\n');
                                                 exit;
