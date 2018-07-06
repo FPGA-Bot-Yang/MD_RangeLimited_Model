@@ -343,10 +343,13 @@ for home_cell_x = 1:CELL_COUNT_X
             end
             particle_count = particle_in_cell_counter(home_cell_x,home_cell_y,home_cell_z);
             for particle_ptr = 1:particle_count
-                if cell_particle(home_cell_id,particle_ptr,4) == 0
+                if cell_particle(home_cell_id,particle_ptr,4) == 0 && cell_particle(home_cell_id,particle_ptr,5) == 0 && cell_particle(home_cell_id,particle_ptr,6) == 0
                     fprintf('home cell %d, particle %d, force value missing!\n', home_cell_id,particle_ptr);
                 end
-                if cell_particle(home_cell_id,particle_ptr,4) ~= 0
+                if cell_particle(home_cell_id,particle_ptr,7) == 0
+                    fprintf('home cell %d, particle %d, energy value missing!\n', home_cell_id,particle_ptr);
+                end
+                if cell_particle(home_cell_id,particle_ptr,4) ~= 0 || cell_particle(home_cell_id,particle_ptr,5) ~= 0 || cell_particle(home_cell_id,particle_ptr,6) ~= 0 || cell_particle(home_cell_id,particle_ptr,7) ~= 0
                     valid_counter = valid_counter + 1;
                 end
             end
@@ -369,39 +372,54 @@ ref_particle_pos_x = cell_particle(cell_id, particle_id, 1);
 ref_particle_pos_y = cell_particle(cell_id, particle_id, 2);
 ref_particle_pos_z = cell_particle(cell_id, particle_id, 3);
 % Traverse across all the particles in the simulation space
-Force_Acc = 0;
+Force_Acc = zeros(1,3);
 particles_within_cutoff = 0;
 for i = 1:TOTAL_PARTICLE
     neighbor_particle_pos_x = position_data(i,1);
     neighbor_particle_pos_y = position_data(i,2);
     neighbor_particle_pos_z = position_data(i,3);
-    dist_x_2 = (neighbor_particle_pos_x - ref_particle_pos_x)^2;
-    dist_y_2 = (neighbor_particle_pos_y - ref_particle_pos_y)^2;
-    dist_z_2 = (neighbor_particle_pos_z - ref_particle_pos_z)^2;
+    dist_x = abs(neighbor_particle_pos_x - ref_particle_pos_x);
+    dist_y = abs(neighbor_particle_pos_y - ref_particle_pos_y);
+    dist_z = abs(neighbor_particle_pos_z - ref_particle_pos_z);
+    dist_x_2 = dist_x^2;
+    dist_y_2 = dist_y^2;
+    dist_z_2 = dist_z^2;
     dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
-    % Filtering, and direct force evaluation
-    A = 12 * EPSILON *(SIGMA^12);
-    B = 6 * EPSILON *(SIGMA^6);
-    if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-        particles_within_cutoff = particles_within_cutoff + 1;
-        % check if there are particles within cutoff radius but falling into far cells
-        neighbor_cell_x = ceil(neighbor_particle_pos_x / CUTOFF_RADIUS);
-        neighbor_cell_y = ceil(neighbor_particle_pos_y / CUTOFF_RADIUS);
-        neighbor_cell_z = ceil(neighbor_particle_pos_z / CUTOFF_RADIUS);
-        if neighbor_cell_x > home_cell_x + 1 || neighbor_cell_x < home_cell_x - 1 || neighbor_cell_y > home_cell_y + 1 || neighbor_cell_y < home_cell_y - 1 || neighbor_cell_z > home_cell_z + 1 || neighbor_cell_z < home_cell_z - 1
-            fprintf('Exceptions!! neighbor particle (%f,%f,%f) is not captured by reference particle (%f,%f,%f)....\n',neighbor_particle_pos_x,neighbor_particle_pos_y,neighbor_particle_pos_z,ref_particle_pos_x,ref_particle_pos_y,ref_particle_pos_z);
-        end
-        % Force evaluation
-        inv_dist_2 = 1 / dist_2;
-        inv_dist_4 = inv_dist_2 ^ 2;
-        inv_dist_8 = inv_dist_4 ^ 2;
-        inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
-        % Force calculate (??????????????????? Is the formular here right ??????????????????)
-        Coulomb_Force = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-        LJ_Force = A * inv_dist_14 - B * inv_dist_8;
+    switch FORCE_MODEL
+        case 'OpenMM'
+            fprintf('Verification for OpenMM force model is under construction!\n');
+            exit;
+        case 'CAAD'
+            % Filtering, and direct force evaluation
+            A = 12 * EPSILON *(SIGMA^12);
+            B = 6 * EPSILON *(SIGMA^6);
+            if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+                particles_within_cutoff = particles_within_cutoff + 1;
+                % check if there are particles within cutoff radius but falling into far cells
+                neighbor_cell_x = ceil(neighbor_particle_pos_x / CUTOFF_RADIUS);
+                neighbor_cell_y = ceil(neighbor_particle_pos_y / CUTOFF_RADIUS);
+                neighbor_cell_z = ceil(neighbor_particle_pos_z / CUTOFF_RADIUS);
+                if neighbor_cell_x > home_cell_x + 1 || neighbor_cell_x < home_cell_x - 1 || neighbor_cell_y > home_cell_y + 1 || neighbor_cell_y < home_cell_y - 1 || neighbor_cell_z > home_cell_z + 1 || neighbor_cell_z < home_cell_z - 1
+                    fprintf('Exceptions!! neighbor particle (%f,%f,%f) is not captured by reference particle (%f,%f,%f)....\n',neighbor_particle_pos_x,neighbor_particle_pos_y,neighbor_particle_pos_z,ref_particle_pos_x,ref_particle_pos_y,ref_particle_pos_z);
+                end
+                % Force evaluation
+                inv_dist_2 = 1 / dist_2;
+                inv_dist_4 = inv_dist_2 ^ 2;
+                inv_dist_8 = inv_dist_4 ^ 2;
+                inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
+                % Force calculate (??????????????????? Is the formular here right ??????????????????)
+                Coulomb_Force_over_R = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                LJ_Force_over_R = A * inv_dist_14 - B * inv_dist_8;
+                Total_Force_over_R = Coulomb_Force_over_R + LJ_Force_over_R;
 
-        % Accumulate the force
-        Force_Acc = Force_Acc + Coulomb_Force + LJ_Force;
+                % Accumulate the force
+                Force_Acc(0) = Force_Acc(0) + Total_Force_over_R * dist_x;
+                Force_Acc(1) = Force_Acc(1) + Total_Force_over_R * dist_y;
+                Force_Acc(2) = Force_Acc(2) + Total_Force_over_R * dist_z;
+            end
+        otherwise
+            fprintf('Invalid force model for verification!\n');
+            exit;
     end
 end
-fprintf('The simulated force is %f with %d particles in cutoff, the verification value is %f with %d particles in cutoff\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),Force_Acc,particles_within_cutoff);
+fprintf('The simulated force is (%f,%f,%f) with %d particles in cutoff, the verification value is (%f,%f,%f) with %d particles in cutoff\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),cell_particle(cell_id,particle_id,6),cell_particle(cell_id,particle_id,8),Force_Acc(0),Force_Acc(1),Force_Acc(2),particles_within_cutoff);
