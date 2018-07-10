@@ -1,7 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Evaluate the accuracy for interpolation
-% Currently only evaluate the LJ force, equation refer to 'Efficient Calculation of Pairwise Nonbonded Forces', M. Chiu, A. Khan, M. Herbordt, FCCM2011
-% Dependency: LJ_poly_interpolation_function.m (Generating the interpolation index and stored in txt file)
+% Evaluate the accuracy for MiniMD LJ force interpolation
+% Dependency: MiniMD_LJ_poly_interpolation_function.m (Generating the interpolation index and stored in txt file)
 % Final result:
 %       Fvdw_real: real result in single precision
 %       Fvdw_poly: result evaluated using polynomial
@@ -26,13 +25,6 @@ precision = 8;                          % # of datepoints when generating the po
 min_range = 1;                          % minimal range for the evaluation
 max_range = min_range * 2^segment_num;  % maximum range for the evaluation (currently this is the cutoff radius)
 
-cutoff = single(max_range);             % Cut-off radius
-cutoff2 = cutoff * cutoff;
-switchon = single(0.1);
-switchon2 = single(switchon * switchon);
-inv_denom = (cutoff2 - switchon2)^3;
-denom = 1 / inv_denom;
-
 r2 = single(min_range:0.01:max_range-0.01);
 
 % initialize variables (in double precision)
@@ -42,68 +34,48 @@ inv_r6 = zeros(length(r2),1);
 inv_r12 = zeros(length(r2),1);
 inv_r8 = zeros(length(r2),1);
 inv_r14 = zeros(length(r2),1);
-s = zeros(length(r2),1);
-ds = zeros(length(r2),1);
 Fvdw_real = zeros(length(r2),1);
 Fvdw_poly = zeros(size(r2,2),1);
 
-% Coefficient gen (random number), independent of r
-Aij = 8;
-Bij = 6;
 
 %% Evaluate the real result in single precision (in double precision)
 for i = 1:size(r2,2)
-    % smooth function
-    if(r2(i) <= switchon2)
-        s(i) = 1;
-        ds(i) = 0;
-    end
-    if(r2(i) > switchon2 && r2(i) <= cutoff2)
-        s(i) = (cutoff2 - r2(i)) * (cutoff2 - r2(i)) * (cutoff2 + 2*r2(i) - 3 * switchon2) * denom;
-        ds(i) = 12 * (cutoff2 - r2(i)) * (switchon2 - r2(i)) * denom;
-    end
-    if(r2(i) > cutoff2)
-        s(i) = 0;
-        ds(i) = 0;
-    end
-    
+
     % calculate the real value
     inv_r2(i) = 1 / r2(i);
     inv_r4(i) = inv_r2(i) * inv_r2(i);
 
-    inv_r6(i)  = inv_r2(i) * inv_r4(i) * s(i);
-    inv_r12(i) = inv_r6(i) * inv_r6(i) * s(i);
+    inv_r6(i)  = inv_r2(i) * inv_r4(i);
+    inv_r12(i) = inv_r6(i) * inv_r6(i);
 
-    inv_r14(i) = inv_r12(i) * (ds(i) - 12*s(i)*inv_r2(i));
-    inv_r8(i)  = inv_r6(i)  * (ds(i) -  6*s(i)*inv_r2(i));
-   
+    inv_r14(i) = inv_r12(i) * inv_r2(i);
+    inv_r8(i)  = inv_r6(i) * inv_r2(i);
     
     % calculate the VDW force
-    Fvdw_real(i) = Aij * inv_r14(i) + Bij * inv_r8(i);
+    Fvdw_real(i) = 48 * inv_r14(i) - 24 * inv_r8(i);
 end
 
 %% Generate the interpolation table (only need to run this once if the interpolation parameter remains)
-LJ_poly_interpolation_function(interpolation_order,segment_num, bin_num,precision,min_range,max_range,cutoff,switchon);
-Col_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min_range,max_range);
+MiniMD_LJ_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min_range,max_range);
 
 %% Evaluate the interpolation result
 % Load in the index data
-fileID_0  = fopen('file_c0_vdw14_f.txt', 'r');
-fileID_1  = fopen('file_c1_vdw14_f.txt', 'r');
+fileID_0  = fopen('table_c0_r14.txt', 'r');
+fileID_1  = fopen('table_c1_r14.txt', 'r');
 if interpolation_order > 1
-    fileID_2  = fopen('file_c2_vdw14_f.txt', 'r');
+    fileID_2  = fopen('table_c2_r14.txt', 'r');
 end
 if interpolation_order > 2
-    fileID_3  = fopen('file_c3_vdw14_f.txt', 'r');
+    fileID_3  = fopen('table_c3_r14.txt', 'r');
 end
 
-fileID_4  = fopen('file_c0_vdw8_f.txt', 'r');
-fileID_5  = fopen('file_c1_vdw8_f.txt', 'r');
+fileID_4  = fopen('table_c0_r8.txt', 'r');
+fileID_5  = fopen('table_c1_r8.txt', 'r');
 if interpolation_order > 1
-    fileID_6  = fopen('file_c2_vdw8_f.txt', 'r');
+    fileID_6  = fopen('table_c2_r8.txt', 'r');
 end
 if interpolation_order > 2
-    fileID_7  = fopen('file_c3_vdw8_f.txt', 'r');
+    fileID_7  = fopen('table_c3_r8.txt', 'r');
 end
 
 % Fetch the index for the polynomials
@@ -194,7 +166,7 @@ for i = 1:size(r2,2)
             vdw8 = polyval([c3_vdw8 c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
     end
     % Calculate the force
-    Fvdw_poly(i) = Aij * vdw14 + Bij * vdw8;
+    Fvdw_poly(i) = vdw14 - vdw8;
 end
 
 

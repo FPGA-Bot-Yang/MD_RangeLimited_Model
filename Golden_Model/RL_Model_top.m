@@ -15,6 +15,8 @@
 %       out_range_particle_counter                              ---- the # of particles that is not in the range of the 9*9*7 cells
 
 
+clear all;
+
 %% Global variables
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
