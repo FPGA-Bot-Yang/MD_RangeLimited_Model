@@ -17,6 +17,8 @@
 clear all;
 
 %% Global variables
+ENABLE_VERIFICATION = false;
+
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
 % Calculation Mode
@@ -158,6 +160,13 @@ for home_cell_x = 1:CELL_COUNT_X
                 ref_particle_pos_y = cell_particle(home_cell_id,ref_particle_ptr,2);
                 ref_particle_pos_z = cell_particle(home_cell_id,ref_particle_ptr,3);
                 
+%                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                 % DEBUGGING VARIABLE
+%                 if home_cell_x == 3 && home_cell_y == 4 && home_cell_z == 3 && ref_particle_ptr == 1
+%                     counter_particle_within_cutoff = zeros(CELL_COUNT_X, CELL_COUNT_Y, CELL_COUNT_Z);
+%                 end
+%                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                
                 %% Traverse 27 neighboring cells
                 for neighbor_cell_x_ptr=1:3
                     for neighbor_cell_y_ptr=1:3
@@ -193,38 +202,50 @@ for home_cell_x = 1:CELL_COUNT_X
                                 end
                                 
                                 % Calculate the distance square btw the reference particle and parter particle
-                                dist_x = single(abs(neighbor_particle_pos_x - ref_particle_pos_x));
-                                dist_y = single(abs(neighbor_particle_pos_y - ref_particle_pos_y));
-                                dist_z = single(abs(neighbor_particle_pos_z - ref_particle_pos_z));
+                                dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
+                                dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
+                                dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
                                 dist_x_2 = dist_x^2;
                                 dist_y_2 = dist_y^2;
-                                dist_z_2 = dist_x^2;
+                                dist_z_2 = dist_z^2;
                                 dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
                                 dist = sqrt(dist_2);
                                 inv_dist = 1 / dist;
                                 
                                 %% Filtering, and direct force evaluation
-                                switch FORCE_MODEL
-                                    % Follow the force model in OpenMM:
-                                    % https://github.com/pandegroup/openmm/blob/master/tests/TestNonbondedForce.h
-                                    % Applied cutoff and switch function, but no PME
-                                    case 'OpenMM'
-                                        % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
-                                        x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                        if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
-                                            Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
-                                            Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                        elseif dist >= 0 && dist < SWITCH_DIST
-                                            Switch_Val = 1;
-                                            Switch_Deri = 0;
-                                        else
-                                            Switch_Val = 0;
-                                            Switch_Deri = 0;
-                                        end
-                                        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-                                            % increment the counter
-                                            particles_within_cutoff = particles_within_cutoff + 1;
-
+                                if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+                                    % increment the counter
+                                    particles_within_cutoff = particles_within_cutoff + 1;
+                                    
+%                                     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                     % DEBUGGING FRAGMENT
+%                                     if home_cell_x == 3 && home_cell_y == 4 && home_cell_z == 3 && ref_particle_ptr == 20
+%                                         counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z) = counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z) + 1;
+%                                         if neighbor_cell_x == 3 && neighbor_cell_y == 4 && neighbor_cell_z == 2
+%                                             temp_cell_particles_within_cutoff(counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z),1:3) = [neighbor_particle_pos_x, neighbor_particle_pos_y, neighbor_particle_pos_z];
+%                                             %fprintf("%f,%f,%f\n", neighbor_particle_pos_x, neighbor_particle_pos_y, neighbor_particle_pos_z);
+%                                         end
+%                                     end
+%                                     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                    
+                                    % Select the force model
+                                    switch FORCE_MODEL
+                                        % Follow the force model in OpenMM:
+                                        % https://github.com/pandegroup/openmm/blob/master/tests/TestNonbondedForce.h
+                                        % Applied cutoff and switch function, but no PME
+                                        case 'OpenMM'
+                                            % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
+                                            x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                            if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                                                Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
+                                                Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                            elseif dist >= 0 && dist < SWITCH_DIST
+                                                Switch_Val = 1;
+                                                Switch_Deri = 0;
+                                            else
+                                                Switch_Val = 0;
+                                                Switch_Deri = 0;
+                                            end
                                             %% Force evaluation
                                             sigma_6 = SIGMA^6;
                                             sigma_12 = sigma_6^2;
@@ -275,18 +296,14 @@ for home_cell_x = 1:CELL_COUNT_X
                                             Force_Acc_x = Force_Acc_x + Total_Force_x;
                                             Force_Acc_y = Force_Acc_y + Total_Force_y;
                                             Force_Acc_z = Force_Acc_z + Total_Force_z;
-                                        end
-                                        
-                                    % Follow the force model from CAAD lab publications:
-                                    % https://ieeexplore.ieee.org/document/5771251/
-                                    % https://ieeexplore.ieee.org/document/5670800/
-                                    % Applied cutoff and switch function, and PME
-                                    case 'CAAD'
-                                        A = 48 * EPSILON *(SIGMA^12);
-                                        B = 24 * EPSILON *(SIGMA^6);
-                                        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-                                            % increment the counter
-                                            particles_within_cutoff = particles_within_cutoff + 1;
+
+                                        % Follow the force model from CAAD lab publications:
+                                        % https://ieeexplore.ieee.org/document/5771251/
+                                        % https://ieeexplore.ieee.org/document/5670800/
+                                        % Applied cutoff and switch function, and PME
+                                        case 'CAAD'
+                                            A = 48 * EPSILON *(SIGMA^12);
+                                            B = 24 * EPSILON *(SIGMA^6);
                                             % Force calculate (??????????????????? Is the formular here right ??????????????????)
                                             inv_dist_2 = 1 / dist_2;
                                             inv_dist_4 = inv_dist_2 ^ 2;
@@ -312,10 +329,11 @@ for home_cell_x = 1:CELL_COUNT_X
                                             Force_Acc_x = Force_Acc_x + Total_Force_over_R * dist_x;
                                             Force_Acc_y = Force_Acc_y + Total_Force_over_R * dist_y;
                                             Force_Acc_z = Force_Acc_z + Total_Force_over_R * dist_z;
-                                        end
-                                    otherwise
-                                        fprintf('Please select a valid force model between OpenMM or CAAD!\n');
-                                        return;
+
+                                        otherwise
+                                            fprintf('Please select a valid force model between OpenMM or CAAD!\n');
+                                            return;
+                                    end
                                 end
                             end
                         end
@@ -370,108 +388,122 @@ fprintf('Total particle number is %d, particles mapped into cell is %d, force wr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Verification
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fprintf('Start Verification, Force model is %s.\n', FORCE_MODEL);
-% Pick a reference paricle and evaluate (!!!!!!!!!!avoid the particles in the corner cells!!!!!!!!)
-home_cell_x = 3;
-home_cell_y = 4;
-home_cell_z = 3;
-particle_id = 1;
-if (home_cell_x == 1 || home_cell_x == CELL_COUNT_X || home_cell_y == 1 || home_cell_y == CELL_COUNT_Y || home_cell_z == 1 || home_cell_z == CELL_COUNT_Z)
-    fprintf('Error in verification: Please reselect the reference particle cell (avoid the corner cells)!!!!\n');
-    return;
-end
-cell_id = (home_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (home_cell_y-1)*CELL_COUNT_Z + home_cell_z;
-ref_particle_pos_x = cell_particle(cell_id, particle_id, 1);
-ref_particle_pos_y = cell_particle(cell_id, particle_id, 2);
-ref_particle_pos_z = cell_particle(cell_id, particle_id, 3);
-% Traverse across all the particles in the simulation space
-Force_Acc = single(zeros(1,3));
-particles_within_cutoff = 0;
-for i = 1:TOTAL_PARTICLE
-    neighbor_particle_pos_x = position_data(i,1);
-    neighbor_particle_pos_y = position_data(i,2);
-    neighbor_particle_pos_z = position_data(i,3);
-    dist_x = abs(neighbor_particle_pos_x - ref_particle_pos_x);
-    dist_y = abs(neighbor_particle_pos_y - ref_particle_pos_y);
-    dist_z = abs(neighbor_particle_pos_z - ref_particle_pos_z);
-    dist_x_2 = dist_x^2;
-    dist_y_2 = dist_y^2;
-    dist_z_2 = dist_z^2;
-    dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
-    switch FORCE_MODEL
-        case 'OpenMM'
-            % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
-            dist = sqrt(dist_2);
-            x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
-            if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
-                Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
-                Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
-            elseif dist >= 0 && dist < SWITCH_DIST
-                Switch_Val = 1;
-                Switch_Deri = 0;
-            else
-                Switch_Val = 0;
-                Switch_Deri = 0;
-            end
-            % Filtering logic and force calculation
-            if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-                particles_within_cutoff = particles_within_cutoff + 1;
-                % check if there are particles within cutoff radius but falling into far cells
-                neighbor_cell_x = ceil(neighbor_particle_pos_x / CUTOFF_RADIUS);
-                neighbor_cell_y = ceil(neighbor_particle_pos_y / CUTOFF_RADIUS);
-                neighbor_cell_z = ceil(neighbor_particle_pos_z / CUTOFF_RADIUS);
-                if neighbor_cell_x > home_cell_x + 1 || neighbor_cell_x < home_cell_x - 1 || neighbor_cell_y > home_cell_y + 1 || neighbor_cell_y < home_cell_y - 1 || neighbor_cell_z > home_cell_z + 1 || neighbor_cell_z < home_cell_z - 1
-                    fprintf('Exceptions!! neighbor particle (%f,%f,%f) is not captured by reference particle (%f,%f,%f)....\n',neighbor_particle_pos_x,neighbor_particle_pos_y,neighbor_particle_pos_z,ref_particle_pos_x,ref_particle_pos_y,ref_particle_pos_z);
-                end
-                % Coulomb interaction with cutoff using reaction field approximation
-                krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
-                crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
-                % Force (The force calculate here is F/r, for easy calculation of force component on each axis)
-                % LJ force over R
-                LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
-                % Apply switch condition for LJ force
-                LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
-                % Coulomb Force over R
-                Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
-                % Total force over R
-                Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
-                % Accumulate the force
-                Force_Acc(1) = Force_Acc(1) + Total_Force_over_R * dist_x;
-                Force_Acc(2) = Force_Acc(2) + Total_Force_over_R * dist_y;
-                Force_Acc(3) = Force_Acc(3) + Total_Force_over_R * dist_z;
-            end
-            
-        case 'CAAD'
-            % Filtering, and direct force evaluation
-            A = 48 * EPSILON *(SIGMA^12);
-            B = 24 * EPSILON *(SIGMA^6);
-            if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
-                particles_within_cutoff = particles_within_cutoff + 1;
-                % check if there are particles within cutoff radius but falling into far cells
-                neighbor_cell_x = ceil(neighbor_particle_pos_x / CUTOFF_RADIUS);
-                neighbor_cell_y = ceil(neighbor_particle_pos_y / CUTOFF_RADIUS);
-                neighbor_cell_z = ceil(neighbor_particle_pos_z / CUTOFF_RADIUS);
-                if neighbor_cell_x > home_cell_x + 1 || neighbor_cell_x < home_cell_x - 1 || neighbor_cell_y > home_cell_y + 1 || neighbor_cell_y < home_cell_y - 1 || neighbor_cell_z > home_cell_z + 1 || neighbor_cell_z < home_cell_z - 1
-                    fprintf('Exceptions!! neighbor particle (%f,%f,%f) is not captured by reference particle (%f,%f,%f)....\n',neighbor_particle_pos_x,neighbor_particle_pos_y,neighbor_particle_pos_z,ref_particle_pos_x,ref_particle_pos_y,ref_particle_pos_z);
-                end
-                % Force evaluation
-                inv_dist_2 = 1 / dist_2;
-                inv_dist_4 = inv_dist_2 ^ 2;
-                inv_dist_8 = inv_dist_4 ^ 2;
-                inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
-                % Force calculate (??????????????????? Is the formular here right ??????????????????)
-                Coulomb_Force_over_R = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
-                LJ_Force_over_R = A * inv_dist_14 - B * inv_dist_8;
-                Total_Force_over_R = Coulomb_Force_over_R + LJ_Force_over_R;
-
-                % Accumulate the force
-                Force_Acc(1) = Force_Acc(1) + Total_Force_over_R * dist_x;
-                Force_Acc(2) = Force_Acc(2) + Total_Force_over_R * dist_y;
-                Force_Acc(3) = Force_Acc(3) + Total_Force_over_R * dist_z;
-            end
-        otherwise
-            fprintf('Invalid force model for verification!\n');
-            return;
+if ENABLE_VERIFICATION
+    fprintf('Start Verification, Force model is %s.\n', FORCE_MODEL);
+    % Pick a reference paricle and evaluate (!!!!!!!!!!avoid the particles in the corner cells!!!!!!!!)
+    home_cell_x = 3;
+    home_cell_y = 4;
+    home_cell_z = 3;
+    particle_id = 20;
+    if (home_cell_x == 1 || home_cell_x == CELL_COUNT_X || home_cell_y == 1 || home_cell_y == CELL_COUNT_Y || home_cell_z == 1 || home_cell_z == CELL_COUNT_Z)
+        fprintf('Error in verification: Please reselect the reference particle cell (avoid the corner cells)!!!!\n');
+        return;
     end
+    cell_id = (home_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (home_cell_y-1)*CELL_COUNT_Z + home_cell_z;
+    ref_particle_pos_x = cell_particle(cell_id, particle_id, 1);
+    ref_particle_pos_y = cell_particle(cell_id, particle_id, 2);
+    ref_particle_pos_z = cell_particle(cell_id, particle_id, 3);
+    % Traverse across all the particles in the simulation space
+    Force_Acc = single(zeros(1,3));
+    particles_within_cutoff = 0;
+    verification_counter_particle_within_cutoff = zeros(CELL_COUNT_X, CELL_COUNT_Y, CELL_COUNT_Z);
+    for i = 1:TOTAL_PARTICLE
+        neighbor_particle_pos_x = position_data(i,1);
+        neighbor_particle_pos_y = position_data(i,2);
+        neighbor_particle_pos_z = position_data(i,3);
+        dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
+        dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
+        dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
+        dist_x_2 = dist_x^2;
+        dist_y_2 = dist_y^2;
+        dist_z_2 = dist_z^2;
+        dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
+
+        % Filtering logic and force calculation
+        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+            % increment the counter for particles within cutoff radius
+            particles_within_cutoff = particles_within_cutoff + 1;
+            % check if there are particles within cutoff radius but falling into far cells
+            neighbor_cell_x = ceil(neighbor_particle_pos_x / CUTOFF_RADIUS);
+            neighbor_cell_y = ceil(neighbor_particle_pos_y / CUTOFF_RADIUS);
+            neighbor_cell_z = ceil(neighbor_particle_pos_z / CUTOFF_RADIUS);
+            if neighbor_cell_x > home_cell_x + 1 || neighbor_cell_x < home_cell_x - 1 || neighbor_cell_y > home_cell_y + 1 || neighbor_cell_y < home_cell_y - 1 || neighbor_cell_z > home_cell_z + 1 || neighbor_cell_z < home_cell_z - 1
+                fprintf('!!!!!Exceptions!! neighbor particle (%f,%f,%f) is not captured by reference particle (%f,%f,%f)....\n',neighbor_particle_pos_x,neighbor_particle_pos_y,neighbor_particle_pos_z,ref_particle_pos_x,ref_particle_pos_y,ref_particle_pos_z);
+                return;
+            end
+
+%             % recording the # of particles that within the cutoff radius in each cell
+%             verification_counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z) = verification_counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z) + 1;
+%             if neighbor_cell_x == 3 && neighbor_cell_y == 4 && neighbor_cell_z == 2
+%                 temp_verification_cell_particles_within_cutoff(verification_counter_particle_within_cutoff(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z),1:3) = [neighbor_particle_pos_x, neighbor_particle_pos_y, neighbor_particle_pos_z]; 
+%             end
+
+            switch FORCE_MODEL
+                case 'OpenMM'
+                    % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
+                    dist = sqrt(dist_2);
+                    x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
+                    if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                        Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
+                        Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
+                    elseif dist >= 0 && dist < SWITCH_DIST
+                        Switch_Val = 1;
+                        Switch_Deri = 0;
+                    else
+                        Switch_Val = 0;
+                        Switch_Deri = 0;
+                    end
+                    inv_dist = 1 / sqrt(dist_2);
+                    inv_dist_2 = 1 / dist_2;
+                    inv_dist_3 = inv_dist_2 * inv_dist;
+                    inv_dist_4 = inv_dist_2 ^ 2;
+                    inv_dist_6 = inv_dist_2 * inv_dist_4;
+                    inv_dist_8 = inv_dist_4 ^ 2;
+                    inv_dist_12 = inv_dist_4 * inv_dist_8;
+                    inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
+                    sigma_6 = SIGMA^6;
+                    sigma_12 = sigma_6^2;
+                    chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
+                    % Coulomb interaction with cutoff using reaction field approximation
+                    krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
+                    crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
+                    % Force (The force calculate here is F/r, for easy calculation of force component on each axis)
+                    % LJ force over R
+                    LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
+                    % Apply switch condition for LJ force
+                    LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
+                    % Coulomb Force over R
+                    Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
+                    % Total force over R
+                    Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
+                    % Accumulate the force
+                    Force_Acc(1) = Force_Acc(1) + Total_Force_over_R * dist_x;
+                    Force_Acc(2) = Force_Acc(2) + Total_Force_over_R * dist_y;
+                    Force_Acc(3) = Force_Acc(3) + Total_Force_over_R * dist_z;
+
+                case 'CAAD'
+                    % Filtering, and direct force evaluation
+                    A = 48 * EPSILON *(SIGMA^12);
+                    B = 24 * EPSILON *(SIGMA^6);
+                    % Force evaluation
+                    inv_dist_2 = 1 / dist_2;
+                    inv_dist_4 = inv_dist_2 ^ 2;
+                    inv_dist_8 = inv_dist_4 ^ 2;
+                    inv_dist_14 = inv_dist_4 * inv_dist_8 * inv_dist_2;
+                    % Force calculate (??????????????????? Is the formular here right ??????????????????)
+                    Coulomb_Force_over_R = CC * erfc(EWALD_COEF*sqrt(dist_2)) * (1/sqrt(dist_2));
+                    LJ_Force_over_R = A * inv_dist_14 - B * inv_dist_8;
+                    Total_Force_over_R = Coulomb_Force_over_R + LJ_Force_over_R;
+
+                    % Accumulate the force
+                    Force_Acc(1) = Force_Acc(1) + Total_Force_over_R * dist_x;
+                    Force_Acc(2) = Force_Acc(2) + Total_Force_over_R * dist_y;
+                    Force_Acc(3) = Force_Acc(3) + Total_Force_over_R * dist_z;
+
+                otherwise
+                    error('Invalid force model for verification!\n');
+            end
+        end
+    end
+    fprintf('The simulated force is (%f,%f,%f) with %d particles in cutoff, the verification value is (%f,%f,%f) with %d particles in cutoff\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),cell_particle(cell_id,particle_id,6),cell_particle(cell_id,particle_id,8),Force_Acc(1),Force_Acc(2),Force_Acc(3),particles_within_cutoff);
 end
-fprintf('The simulated force is (%f,%f,%f) with %d particles in cutoff, the verification value is (%f,%f,%f) with %d particles in cutoff\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),cell_particle(cell_id,particle_id,6),cell_particle(cell_id,particle_id,8),Force_Acc(1),Force_Acc(2),Force_Acc(3),particles_within_cutoff);
