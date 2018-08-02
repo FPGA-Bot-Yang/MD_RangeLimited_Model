@@ -18,6 +18,7 @@ clear all;
 
 %% Global variables
 ENABLE_VERIFICATION = false;
+RANGE_PROFILING = true;
 
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
@@ -48,6 +49,40 @@ ONE_4PI_EPS0 = 138.935456;                                      % Coulomb consta
 SOLVENT_DIELECTRIC = 80;                                        % Dielectric constant of the solvent, in water, value is 80
 Q1 = 1;                                                         % Charge 1 (serve as placeholder)
 Q2 = 2;                                                         % Charge 2 (serve as placeholder)
+
+% Range profiling related variables
+min_dx = single(100000);
+max_dx = single(0);
+min_dx_2 = single(100000);
+max_dx_2 = single(0);
+min_r2 = single(100000);
+max_r2 = single(0);
+min_inv_r3_term = single(100000);
+max_inv_r3_term = single(0);
+min_inv_r6_term = single(100000);
+max_inv_r6_term = single(0);
+min_inv_r8_term = single(100000);
+max_inv_r8_term = single(0);
+min_inv_r12_term = single(100000);
+max_inv_r12_term = single(0);
+min_inv_r14_term = single(100000);
+max_inv_r14_term = single(0);
+min_LJ_Force = single(100000);
+max_LJ_Force = single(0);
+min_LJ_Energy = single(100000);
+max_LJ_Energy = single(0);
+min_Coulomb_Force = single(100000);
+max_Coulomb_Force = single(0);
+min_Coulomb_Energy = single(100000);
+max_Coulomb_Energy = single(0);
+min_Total_Force = single(100000);
+max_Total_Force = single(0);
+min_Total_Energy = single(100000);
+max_Total_Energy = single(0);
+min_Force_Acc = single(100000);
+max_Force_Acc = single(0);
+min_Energy_Acc = single(100000);
+max_Energy_Acc = single(0);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Preprocessing Input data
@@ -212,6 +247,16 @@ for home_cell_x = 1:CELL_COUNT_X
                                 dist = sqrt(dist_2);
                                 inv_dist = 1 / dist;
                                 
+                                % RANGE PROFILING
+                                if RANGE_PROFILING
+                                    min_dx = min([min_dx dist_x dist_y dist_z]);
+                                    max_dx = max([max_dx dist_x dist_y dist_z]);
+                                    min_dx_2 = min([min_dx_2 dist_x_2 dist_y_2 dist_z_2]);
+                                    max_dx_2 = max([max_dx_2 dist_x_2 dist_y_2 dist_z_2]);
+                                    min_r2 = min([min_r2 dist_2]);
+                                    max_r2 = max([max_r2 dist_2]);
+                                end
+                                
                                 %% Filtering, and direct force evaluation
                                 if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
                                     % increment the counter
@@ -334,6 +379,37 @@ for home_cell_x = 1:CELL_COUNT_X
                                             fprintf('Please select a valid force model between OpenMM or CAAD!\n');
                                             return;
                                     end
+                                    
+                                    % RANGE PROFILING
+                                    if RANGE_PROFILING
+                                        min_inv_r3_term = min([min_inv_r3_term inv_dist_3]);
+                                        max_inv_r3_term = max([max_inv_r3_term inv_dist_3]);
+                                        min_inv_r6_term = min([min_inv_r6_term inv_dist_6]);
+                                        max_inv_r6_term = max([max_inv_r6_term inv_dist_6]);
+                                        min_inv_r8_term = min([min_inv_r8_term inv_dist_8]);
+                                        max_inv_r8_term = max([max_inv_r8_term inv_dist_8]);
+                                        min_inv_r12_term = min([min_inv_r12_term inv_dist_12]);
+                                        max_inv_r12_term = max([max_inv_r12_term inv_dist_12]);
+                                        min_inv_r14_term = min([min_inv_r14_term inv_dist_14]);
+                                        max_inv_r14_term = max([max_inv_r14_term inv_dist_14]);
+                                        min_LJ_Force = min([min_LJ_Force LJ_Force_over_R]);
+                                        max_LJ_Force = max([max_LJ_Force LJ_Force_over_R]);
+                                        min_LJ_Energy = min([min_LJ_Energy LJ_Energy]);
+                                        max_LJ_Energy = max([max_LJ_Energy LJ_Energy]);
+                                        min_Coulomb_Force = min([min_Coulomb_Force Coulomb_Force_over_R]);
+                                        max_Coulomb_Force = max([max_Coulomb_Force Coulomb_Force_over_R]);
+                                        min_Coulomb_Energy = min([min_Coulomb_Energy Coulomb_Energy]);
+                                        max_Coulomb_Energy = max([max_Coulomb_Energy Coulomb_Energy]);
+                                        min_Total_Force = min([min_Total_Force Total_Force_over_R]);
+                                        max_Total_Force = max([max_Total_Force Total_Force_over_R]);
+                                        min_Total_Energy = min([min_Total_Energy Total_Energy]);
+                                        max_Total_Energy = max([max_Total_Energy Total_Energy]);
+                                        min_Force_Acc = min([min_Force_Acc Force_Acc_x Force_Acc_y Force_Acc_z]);
+                                        max_Force_Acc = max([max_Force_Acc Force_Acc_x Force_Acc_y Force_Acc_z]);
+                                        min_Energy_Acc = min([min_Energy_Acc Energy_Acc]);
+                                        max_Energy_Acc = max([max_Energy_Acc Energy_Acc]);
+                                    end
+                                    
                                 end
                             end
                         end
@@ -384,6 +460,11 @@ for home_cell_x = 1:CELL_COUNT_X
 end
 fprintf('Total particle number is %d, particles mapped into cell is %d, force write back counter is %d, parciles with valid force value is %d\n', TOTAL_PARTICLE, TOTAL_PARTICLE-out_range_particle_counter, force_write_back_counter, valid_counter);
 
+if RANGE_PROFILING
+    max_range = max([max_dx max_dx_2 max_r2 max_inv_r3_term max_inv_r6_term max_inv_r8_term max_inv_r12_term max_inv_r14_term max_LJ_Force max_LJ_Energy max_Coulomb_Force max_Coulomb_Energy max_Total_Force max_Total_Energy max_Force_Acc max_Energy_Acc]);
+    min_range = min([min_dx min_dx_2 min_r2 min_inv_r3_term min_inv_r6_term min_inv_r8_term min_inv_r12_term min_inv_r14_term min_LJ_Force min_LJ_Energy min_Coulomb_Force min_Coulomb_Energy min_Total_Force min_Total_Energy min_Force_Acc min_Energy_Acc]);
+    fprintf('The value are ranging from %f to %f.\n', min_range, max_range);
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Verification
