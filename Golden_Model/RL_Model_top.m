@@ -17,7 +17,7 @@
 clear all;
 
 %% Global variables
-ENABLE_VERIFICATION = false;
+ENABLE_VERIFICATION = true;
 RANGE_PROFILING = true;
 
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
@@ -33,15 +33,17 @@ CELL_COUNT_Z = 7;
 CELL_PARTICLE_MAX = 220;                                        % The maximum possible particle count in each cell
 TOTAL_PARTICLE = 92224;                                         % particle count in ApoA1 benchmark
 % Processing Parameters
-CUTOFF_RADIUS = single(12);                                             % 12 angstrom cutoff radius for ApoA1
+BOND_DISTANCE = single(0.96);                                   % Bonded pairs distance for H2O molecule
+BOND_DISTANCE_2 = BOND_DISTANCE ^ 2;
+CUTOFF_RADIUS = single(12);                                     % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
 INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
 SWITCH_DIST = 10;                                               % Switch distance for LJ evaluation
 % MD related Parameters (source:https://github.com/pandegroup/openmm/blob/master/wrappers/python/tests/systems/test_amber_ff.xml)
-EPSILON = single(sqrt(0.065689*0.878640));                              % sqrt[EPS(H) * EPS(O)]
-SIGMA = single((0.247135+0.295992)/2);                                  % [SIG(H) + SIG(O)] / 2
-CC = single(332.0636);                                                  % Coulomb constant * Charge1 * Charge2
+EPSILON = single(sqrt(0.065689*0.878640));                      % sqrt[EPS(H) * EPS(O)]
+SIGMA = single((0.247135+0.295992)/2);                          % [SIG(H) + SIG(O)] / 2
+CC = single(332.0636);                                          % Coulomb constant * Charge1 * Charge2
 EWALD_COEF = single(0.257952);
 EWALD_COEF_2 = EWALD_COEF * EWALD_COEF;
 GRAD_COEF = 0.291067;
@@ -258,7 +260,7 @@ for home_cell_x = 1:CELL_COUNT_X
                                 end
                                 
                                 %% Filtering, and direct force evaluation
-                                if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+                                if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > BOND_DISTANCE_2
                                     % increment the counter
                                     particles_within_cutoff = particles_within_cutoff + 1;
                                     
@@ -501,7 +503,7 @@ if ENABLE_VERIFICATION
         dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
 
         % Filtering logic and force calculation
-        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > 0
+        if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > BOND_DISTANCE_2
             % increment the counter for particles within cutoff radius
             particles_within_cutoff = particles_within_cutoff + 1;
             % check if there are particles within cutoff radius but falling into far cells
