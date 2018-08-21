@@ -17,9 +17,9 @@
 clear all;
 
 %% Global variables
-ENABLE_VERIFICATION = true;
+ENABLE_VERIFICATION = false;
 RANGE_PROFILING = true;
-
+% Input Path
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
 % Calculation Mode
@@ -27,15 +27,15 @@ CALCULATION_MODE = 'direct';                                    % Select Calcula
 % Select Force Model
 FORCE_MODEL = 'OpenMM';                                         % Select force model between 'OpenMM' or 'CAAD'
 % Benmarck Parameters
-CELL_COUNT_X = 9;
-CELL_COUNT_Y = 9;
-CELL_COUNT_Z = 7;
+CELL_COUNT_X = 16;
+CELL_COUNT_Y = 16;
+CELL_COUNT_Z = 11;
 CELL_PARTICLE_MAX = 220;                                        % The maximum possible particle count in each cell
 TOTAL_PARTICLE = 92224;                                         % particle count in ApoA1 benchmark
 % Processing Parameters
 BOND_DISTANCE = single(0.96);                                   % Bonded pairs distance for H2O molecule
 BOND_DISTANCE_2 = BOND_DISTANCE ^ 2;
-CUTOFF_RADIUS = single(12);                                     % 12 angstrom cutoff radius for ApoA1
+CUTOFF_RADIUS = single(8);                                     % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
 INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
@@ -51,6 +51,9 @@ ONE_4PI_EPS0 = 138.935456;                                      % Coulomb consta
 SOLVENT_DIELECTRIC = 80;                                        % Dielectric constant of the solvent, in water, value is 80
 Q1 = 1;                                                         % Charge 1 (serve as placeholder)
 Q2 = 2;                                                         % Charge 2 (serve as placeholder)
+
+%% Profiling Variables
+Bonded_Particle_Pairs = uint32(0);
 
 % Range profiling related variables
 min_dx = single(100000);
@@ -117,9 +120,21 @@ cell_particle = zeros(CELL_COUNT_X*CELL_COUNT_Y*CELL_COUNT_Z,CELL_PARTICLE_MAX,8
 out_range_particle_counter = 0;
 for i = 1:TOTAL_PARTICLE
     % determine the cell each particle belongs to
-    cell_x = ceil(position_data(i,1) / CUTOFF_RADIUS);
-    cell_y = ceil(position_data(i,2) / CUTOFF_RADIUS);
-    cell_z = ceil(position_data(i,3) / CUTOFF_RADIUS);
+    if position_data(i,1) ~= 0
+        cell_x = ceil(position_data(i,1) / CUTOFF_RADIUS);
+    else
+        cell_x = 1;
+    end
+    if position_data(i,2) ~= 0
+        cell_y = ceil(position_data(i,2) / CUTOFF_RADIUS);
+    else
+        cell_y = 1;
+    end
+    if position_data(i,3) ~= 0
+        cell_z = ceil(position_data(i,3) / CUTOFF_RADIUS);
+    else
+        cell_z = 1;
+    end
     % write the particle information to cell list
     if cell_x > 0 && cell_x <= CELL_COUNT_X && cell_y > 0 && cell_y <= CELL_COUNT_Y && cell_z > 0 && cell_z <= CELL_COUNT_Z
         % increment counter
@@ -131,6 +146,7 @@ for i = 1:TOTAL_PARTICLE
         cell_particle(cell_id,counter_temp,3) = position_data(i,3);
     else
         out_range_particle_counter = out_range_particle_counter + 1;
+        fprintf('Out of range partcile is (%f,%f,%f)\n', position_data(i,1:3));
     end
 end
 fprintf('Particles mapping to cells finished! Total of %d particles falling out of the range.\n', out_range_particle_counter);
@@ -260,10 +276,14 @@ for home_cell_x = 1:CELL_COUNT_X
                                 end
                                 
                                 %% Filtering, and direct force evaluation
+                                % PROFILING: Count the # of bonded particle pairs
+                                if dist_2 <= BOND_DISTANCE_2
+                                    Bonded_Particle_Pairs = Bonded_Particle_Pairs + 1;
+                                end
                                 if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > BOND_DISTANCE_2
                                     % increment the counter
                                     particles_within_cutoff = particles_within_cutoff + 1;
-                                    
+
 %                                     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                                     % DEBUGGING FRAGMENT
 %                                     if home_cell_x == 3 && home_cell_y == 4 && home_cell_z == 3 && ref_particle_ptr == 20
@@ -429,6 +449,7 @@ for home_cell_x = 1:CELL_COUNT_X
         end
     end
 end
+fprintf('The number of bonded particle pairs is: %d\n',Bonded_Particle_Pairs/2);
 fprintf('Force evaluation is finished!\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -438,6 +459,7 @@ fprintf('*** Start Profiling! ***\n')
 % Verify the total number of evaluated particles
 valid_counter = 0;
 max_home_cell_id = 0;
+Verification_Bonded_Particle_Pairs = 0;
 for home_cell_x = 1:CELL_COUNT_X
     for home_cell_y = 1:CELL_COUNT_Y
         for home_cell_z = 1:CELL_COUNT_Z
@@ -477,7 +499,7 @@ if ENABLE_VERIFICATION
     home_cell_x = 3;
     home_cell_y = 4;
     home_cell_z = 3;
-    particle_id = 20;
+    particle_id = 2;
     if (home_cell_x == 1 || home_cell_x == CELL_COUNT_X || home_cell_y == 1 || home_cell_y == CELL_COUNT_Y || home_cell_z == 1 || home_cell_z == CELL_COUNT_Z)
         fprintf('Error in verification: Please reselect the reference particle cell (avoid the corner cells)!!!!\n');
         return;
@@ -489,6 +511,7 @@ if ENABLE_VERIFICATION
     % Traverse across all the particles in the simulation space
     Force_Acc = single(zeros(1,3));
     particles_within_cutoff = 0;
+    Verification_Bonded_Particle_Pairs = uint32(0);
     verification_counter_particle_within_cutoff = zeros(CELL_COUNT_X, CELL_COUNT_Y, CELL_COUNT_Z);
     for i = 1:TOTAL_PARTICLE
         neighbor_particle_pos_x = position_data(i,1);
@@ -503,6 +526,10 @@ if ENABLE_VERIFICATION
         dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
 
         % Filtering logic and force calculation
+        % PROFILING: Count the # of bonded particle pairs
+        if dist_2 <= BOND_DISTANCE_2
+            Verification_Bonded_Particle_Pairs = Verification_Bonded_Particle_Pairs + 1;
+        end
         if dist_2 <= CUTOFF_RADIUS_2 && dist_2 > BOND_DISTANCE_2
             % increment the counter for particles within cutoff radius
             particles_within_cutoff = particles_within_cutoff + 1;
@@ -588,5 +615,5 @@ if ENABLE_VERIFICATION
             end
         end
     end
-    fprintf('The simulated force is (%f,%f,%f) with %d particles in cutoff, the verification value is (%f,%f,%f) with %d particles in cutoff\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),cell_particle(cell_id,particle_id,6),cell_particle(cell_id,particle_id,8),Force_Acc(1),Force_Acc(2),Force_Acc(3),particles_within_cutoff);
+    fprintf('The simulated force is (%f,%f,%f) with %d particles in cutoff, total bonded paricle pairs is %d\nThe verification value is (%f,%f,%f) with %d particles in cutoff, bonded particle pairs for this reference particle is %d.\n', cell_particle(cell_id,particle_id,4),cell_particle(cell_id,particle_id,5),cell_particle(cell_id,particle_id,6),cell_particle(cell_id,particle_id,8),Bonded_Particle_Pairs/2, Force_Acc(1),Force_Acc(2),Force_Acc(3),particles_within_cutoff,Verification_Bonded_Particle_Pairs);
 end
