@@ -2,7 +2,7 @@
 % Unit of the position is angstrom
 % The readin data is stored in a 2D array
 
-function position_data = load_particle_position(filename)
+function position_data = load_raw_particle_position(filename)
     fp = fopen(filename);
     if fp == -1
         fprintf('failed to open %s\n',filename);

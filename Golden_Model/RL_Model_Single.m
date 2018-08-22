@@ -95,7 +95,7 @@ max_Energy_Acc = single(0);
 %% Load the data from input file
 input_file_path = strcat(common_path, input_position_file_name);
 fprintf('*** Start reading data from input file %s ***\n', input_file_path);
-position_data = single(load_particle_position(input_file_path));
+position_data = single(load_raw_particle_position(input_file_path));
 fprintf('Particle data loading finished!\n');
 % find the min, max on each dimension
 min_x  = min(position_data(:,1));
