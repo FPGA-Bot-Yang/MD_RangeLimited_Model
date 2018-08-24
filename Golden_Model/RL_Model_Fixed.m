@@ -21,7 +21,7 @@ clear all;
 
 %% Global variables
 ENABLE_VERIFICATION = false;
-RANGE_PROFILING = true;
+RANGE_PROFILING = false;
 % Input Path
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
@@ -30,15 +30,15 @@ CALCULATION_MODE = 'direct';                                    % Select Calcula
 % Select Force Model
 FORCE_MODEL = 'OpenMM';                                         % Select force model between 'OpenMM' or 'CAAD'
 % Benmarck Parameters
-CELL_COUNT_X = 16;
-CELL_COUNT_Y = 16;
-CELL_COUNT_Z = 11;
+CELL_COUNT_X = uint32(16);
+CELL_COUNT_Y = uint32(16);
+CELL_COUNT_Z = uint32(11);
 CELL_PARTICLE_MAX = 220;                                        % The maximum possible particle count in each cell
 TOTAL_PARTICLE = 92224;                                         % particle count in ApoA1 benchmark
 % Processing Parameters
 BOND_DISTANCE = single(0.96);                                   % Bonded pairs distance for H2O molecule
 BOND_DISTANCE_2 = BOND_DISTANCE ^ 2;
-CUTOFF_RADIUS = single(8);                                     % 12 angstrom cutoff radius for ApoA1
+CUTOFF_RADIUS = uint32(8);                                     % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
 INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
@@ -55,8 +55,13 @@ SOLVENT_DIELECTRIC = 80;                                        % Dielectric con
 Q1 = 1;                                                         % Charge 1 (serve as placeholder)
 Q2 = 2;                                                         % Charge 2 (serve as placeholder)
 
+
+%% Profiling Variable
+Bonded_Particle_Pairs  = uint32(0);         % Profiling variable to record the number of particle pairs that is recognized as bonded pairs
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Preprocessing Input data
+%% Format: 7.25
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % %% Load the data from input file
 % input_file_path = strcat(common_path, input_position_file_name);
@@ -77,8 +82,10 @@ Q2 = 2;                                                         % Charge 2 (serv
 % raw_position_data(:,3) = raw_position_data(:,3)-min_z;          % range: 0 ~ 81.489
 % fprintf('All particles shifted to align on (0,0,0)\n');
 % 
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 7.25 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % %% Changing the position data from single to fixed point in ufi type (7.25 format, 32-bit)
 % fprintf('*** Changing the format from single precision to custom fixed point!\n');
+% fprintf('This prcess takes approximatly 20 minutes to finish. Do this once and store `position_data` as .mat file. Next time just load in the workspace to save time!\n');
 % for i = 1:TOTAL_PARTICLE
 %     position_data(i,1) = ufi(raw_position_data(i,1), 32, 25);
 %     position_data(i,2) = ufi(raw_position_data(i,2), 32, 25);
@@ -94,38 +101,39 @@ fprintf('Particle data loading finished!\n');
 
 
 %% Mapping the particles to cell list
-fprintf('*** Start mapping paricles to cells! ***\n');
-% Bounding box of 8A, total of 16*16*11 cells, organized in a 4D array
-% The 4 MSB determines the cell
-particle_in_cell_counter = zeros(CELL_COUNT_X,CELL_COUNT_Y,CELL_COUNT_Z);               % counters tracking the # of particles in each cell
-cell_particle = uint32(zeros(CELL_COUNT_X*CELL_COUNT_Y*CELL_COUNT_Z,CELL_PARTICLE_MAX,8));      % 3D array holding sorted cell particles(cell_id, particle_id, particle_info), cell_id = (cell_x-1)*9*7+(cell_y-1)*7+cell_z
-                                                                                        % Patticle info: 1~3:position, 4~6:force component in each direction, 7: energy, 8:# of partner particles
-out_range_particle_counter = 0;
-for i = 1:TOTAL_PARTICLE
-    % Position data shift right 32-4=28bits, then it's the cell # belongs to
-    cell_x = bitsrl(bin(position_data(i,1)),28) + 1;
-    cell_y = bitsrl(bin(position_data(i,1)),28) + 1;
-    cell_z = bitsrl(bin(position_data(i,1)),28) + 1;
-    % write the particle information to cell list
-    if cell_x > 0 && cell_x <= CELL_COUNT_X && cell_y > 0 && cell_y <= CELL_COUNT_Y && cell_z > 0 && cell_z <= CELL_COUNT_Z
-        % increment counter
-        counter_temp = particle_in_cell_counter(cell_x, cell_y, cell_z) + 1;
-        particle_in_cell_counter(cell_x, cell_y, cell_z) = counter_temp;
-        cell_id = (cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (cell_y-1)*CELL_COUNT_Z + cell_z;
-        cell_particle(cell_id,counter_temp,1) = position_data(i,1);
-        cell_particle(cell_id,counter_temp,2) = position_data(i,2);
-        cell_particle(cell_id,counter_temp,3) = position_data(i,3);
-    else
-        out_range_particle_counter = out_range_particle_counter + 1;
-        fprintf('Out of range partcile is (%f,%f,%f)\n', position_data(i,1:3));
-    end
-end
-fprintf('Particles mapping to cells finished! Total of %d particles falling out of the range.\n', out_range_particle_counter);
+% fprintf('*** Start mapping paricles to cells! ***\n');
+% % Bounding box of 8A, total of 16*16*11 cells, organized in a 4D array
+% % The 4 MSB determines the cell
+% fprintf('This process takes 5 hours to finish, do this once and save the `cell_particle` and `particle_in_cell_counter` as .mat file, next time, just load in the values to workspace\n');
+% particle_in_cell_counter = uint32(zeros(CELL_COUNT_X,CELL_COUNT_Y,CELL_COUNT_Z));               % counters tracking the # of particles in each cell
+% cell_particle = ufi(zeros(CELL_COUNT_X*CELL_COUNT_Y*CELL_COUNT_Z,CELL_PARTICLE_MAX,8),32,25);      % 3D array holding sorted cell particles(cell_id, particle_id, particle_info), cell_id = (cell_x-1)*9*7+(cell_y-1)*7+cell_z
+%                                                                                         % Patticle info: 1~3:position, 4~6:force component in each direction, 7: energy, 8:# of partner particles
+% out_range_particle_counter = 0;
+% for i = 1:TOTAL_PARTICLE
+%     % Position data shift right 32-4=28bits, then it's the cell # belongs to
+%     cell_x = bitsrl(storedInteger(position_data(i,1)),28) + 1;
+%     cell_y = bitsrl(storedInteger(position_data(i,2)),28) + 1;
+%     cell_z = bitsrl(storedInteger(position_data(i,3)),28) + 1;
+%     % write the particle information to cell list
+%     if cell_x > 0 && cell_x <= CELL_COUNT_X && cell_y > 0 && cell_y <= CELL_COUNT_Y && cell_z > 0 && cell_z <= CELL_COUNT_Z
+%         % increment counter
+%         counter_temp = particle_in_cell_counter(cell_x, cell_y, cell_z) + 1;
+%         particle_in_cell_counter(cell_x, cell_y, cell_z) = counter_temp;
+%         cell_id = (cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (cell_y-1)*CELL_COUNT_Z + cell_z;
+%         cell_particle(cell_id,counter_temp,1) = position_data(i,1);
+%         cell_particle(cell_id,counter_temp,2) = position_data(i,2);
+%         cell_particle(cell_id,counter_temp,3) = position_data(i,3);
+%     else
+%         out_range_particle_counter = out_range_particle_counter + 1;
+%         fprintf('Out of range partcile is (%f,%f,%f)\n', position_data(i,1:3));
+%     end
+% end
+% fprintf('Particles mapping to cells finished! Total of %d particles falling out of the range.\n', out_range_particle_counter);
 
-% % Load the data into workspace
-% load('cell_particle.mat');
-% load('particle_in_cell_counter.mat');
-% fprintf('Particles mapping to cells finished!\n');
+% Load the pre-calculated data into workspace
+load('cell_particle_7_25.mat');
+load('particle_in_cell_counter.mat');
+fprintf('Particles mapping to cells finished!\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Filtering & Force Evaluation
@@ -141,7 +149,10 @@ switch FORCE_MODEL
     otherwise
         fprintf('Invalid force model!\n');
 end
-force_write_back_counter = 0;       % Profiling variable to record how many neighbor particles has been calculated
+
+force_write_back_counter = uint32(0);       % Profiling variable to record how many neighbor particles has been calculated
+
+
 % Loopping into each home cell
 for home_cell_x = 1:CELL_COUNT_X
     for home_cell_y = 1:CELL_COUNT_Y
@@ -171,23 +182,26 @@ for home_cell_x = 1:CELL_COUNT_X
             end
             
             % Collect the home cell information
-            home_cell_id = (home_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (home_cell_y-1)*CELL_COUNT_Z + home_cell_z;
+            home_cell_id = uint32((home_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (home_cell_y-1)*CELL_COUNT_Z + home_cell_z);
             home_particle_counter = particle_in_cell_counter(home_cell_x,home_cell_y,home_cell_z);
             
             %% Select each particle in home cell as reference particle, traverse all the particles in home cells
             for ref_particle_ptr = 1:home_particle_counter
                 % Initialize the force and energy value as 0 for each reference particle
-                Force_Acc_x = single(0);
-                Force_Acc_y = single(0);
-                Force_Acc_z = single(0);
-                Energy_Acc = single(0);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 10.22 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                
+                Force_Acc_x = ufi(0, 32, 22);
+                Force_Acc_y = ufi(0, 32, 22);
+                Force_Acc_z = ufi(0, 32, 22);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 13.19 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                Energy_Acc = ufi(0, 32, 19);
                 % Initialize the counter for recording how many neighboring particles within the cutoff radius
-                particles_within_cutoff = 0;
+                particles_within_cutoff = uint32(0);
                 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                 % Get reference particle coordinates
-                ref_particle_pos_x = cell_particle(home_cell_id,ref_particle_ptr,1);
-                ref_particle_pos_y = cell_particle(home_cell_id,ref_particle_ptr,2);
-                ref_particle_pos_z = cell_particle(home_cell_id,ref_particle_ptr,3);
+                ref_particle_pos_x = ufi(cell_particle(home_cell_id,ref_particle_ptr,1), 32, 24);
+                ref_particle_pos_y = ufi(cell_particle(home_cell_id,ref_particle_ptr,2), 32, 24);
+                ref_particle_pos_z = ufi(cell_particle(home_cell_id,ref_particle_ptr,3), 32, 24);
                 
 %                 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %                 % DEBUGGING VARIABLE
@@ -204,52 +218,62 @@ for home_cell_x = 1:CELL_COUNT_X
                             neighbor_cell_x = neighbor_cell_x_list(neighbor_cell_x_ptr);
                             neighbor_cell_y = neighbor_cell_y_list(neighbor_cell_y_ptr);
                             neighbor_cell_z = neighbor_cell_z_list(neighbor_cell_z_ptr);
-                            neighbor_cell_id = (neighbor_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (neighbor_cell_y-1)*CELL_COUNT_Z + neighbor_cell_z;
+                            neighbor_cell_id = uint32((neighbor_cell_x-1)*CELL_COUNT_Y*CELL_COUNT_Z + (neighbor_cell_y-1)*CELL_COUNT_Z + neighbor_cell_z);
                             neighbor_particle_counter = particle_in_cell_counter(neighbor_cell_x,neighbor_cell_y,neighbor_cell_z);
                         
                             %% Traverse all the partner particles inside the current neighbor cell
                             for neighbor_particle_ptr=1:neighbor_particle_counter
-                                neighbor_particle_pos_x = cell_particle(neighbor_cell_id,neighbor_particle_ptr,1);
-                                neighbor_particle_pos_y = cell_particle(neighbor_cell_id,neighbor_particle_ptr,2);
-                                neighbor_particle_pos_z = cell_particle(neighbor_cell_id,neighbor_particle_ptr,3);
+             
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                neighbor_particle_pos_x = ufi(cell_particle(neighbor_cell_id,neighbor_particle_ptr,1), 32, 24);
+                                neighbor_particle_pos_y = ufi(cell_particle(neighbor_cell_id,neighbor_particle_ptr,2), 32, 24);
+                                neighbor_particle_pos_z = ufi(cell_particle(neighbor_cell_id,neighbor_particle_ptr,3), 32, 24);
                                 
                                 % Apply boundary condition to the partner particles
                                 if home_cell_x == CELL_COUNT_X && neighbor_cell_x == 1
-                                    neighbor_particle_pos_x = single(neighbor_particle_pos_x + CELL_COUNT_X * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_x = (neighbor_particle_pos_x + CELL_COUNT_X * CUTOFF_RADIUS);
                                 elseif home_cell_x == 1 && neighbor_cell_x == CELL_COUNT_X
-                                    neighbor_particle_pos_x = single(neighbor_particle_pos_x - CELL_COUNT_X * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_x = (neighbor_particle_pos_x - CELL_COUNT_X * CUTOFF_RADIUS);
                                 end
                                 if home_cell_y == CELL_COUNT_Y && neighbor_cell_y == 1
-                                    neighbor_particle_pos_y = single(neighbor_particle_pos_y + CELL_COUNT_Y * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_y = (neighbor_particle_pos_y + CELL_COUNT_Y * CUTOFF_RADIUS);
                                 elseif home_cell_y == 1 && neighbor_cell_y == CELL_COUNT_Y
-                                    neighbor_particle_pos_y = single(neighbor_particle_pos_y - CELL_COUNT_Y * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_y = (neighbor_particle_pos_y - CELL_COUNT_Y * CUTOFF_RADIUS);
                                 end
                                 if home_cell_z == CELL_COUNT_Z && neighbor_cell_z == 1
-                                    neighbor_particle_pos_z = single(neighbor_particle_pos_z + CELL_COUNT_Z * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_z = (neighbor_particle_pos_z + CELL_COUNT_Z * CUTOFF_RADIUS);
                                 elseif home_cell_z == 1 && neighbor_cell_z == CELL_COUNT_Z
-                                    neighbor_particle_pos_z = single(neighbor_particle_pos_z - CELL_COUNT_Z * CUTOFF_RADIUS);
+                                    neighbor_particle_pos_z = (neighbor_particle_pos_z - CELL_COUNT_Z * CUTOFF_RADIUS);
                                 end
                                 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                
                                 % Calculate the distance square btw the reference particle and parter particle
-                                dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
-                                dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
-                                dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
-                                dist_x_2 = dist_x^2;
-                                dist_y_2 = dist_y^2;
-                                dist_z_2 = dist_z^2;
-                                dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
-                                dist = sqrt(dist_2);
-                                inv_dist = 1 / dist;
-                                
-                                % RANGE PROFILING
-                                if RANGE_PROFILING
-                                    min_dx = min([min_dx dist_x dist_y dist_z]);
-                                    max_dx = max([max_dx dist_x dist_y dist_z]);
-                                    min_dx_2 = min([min_dx_2 dist_x_2 dist_y_2 dist_z_2]);
-                                    max_dx_2 = max([max_dx_2 dist_x_2 dist_y_2 dist_z_2]);
-                                    min_r2 = min([min_r2 dist_2]);
-                                    max_r2 = max([max_r2 dist_2]);
+                                % Since we are using unsigned fixed point here, make sure using the larger number to subtract from
+                                if neighbor_particle_pos_x >= ref_particle_pos_x
+                                    dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
+                                else
+                                    dist_x = single(ref_particle_pos_x - neighbor_particle_pos_x);
                                 end
+                                if neighbor_particle_pos_y >= ref_particle_pos_y
+                                    dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
+                                else
+                                    dist_y = single(ref_particle_pos_y - neighbor_particle_pos_y);
+                                end
+                                if neighbor_particle_pos_z >= ref_particle_pos_z
+                                    dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
+                                else
+                                    dist_z = single(ref_particle_pos_z - neighbor_particle_pos_z);
+                                end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                    
+                                dist_x_2 = ufi(dist_x^2, 32, 23);
+                                dist_y_2 = ufi(dist_y^2, 32, 23);
+                                dist_z_2 = ufi(dist_z^2, 32, 23);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 10.22 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+                                dist_2 = ufi((dist_x_2 + dist_y_2 + dist_z_2), 32, 22);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 4.28 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+                                dist = ufi((sqrt(dist_2)), 32, 28);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 2.30 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                    
+                                inv_dist = ufi((1 / dist), 32, 30);
                                 
                                 %% Filtering, and direct force evaluation
                                 % PROFILING: Count the # of bonded particle pairs
