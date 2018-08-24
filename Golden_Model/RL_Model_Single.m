@@ -329,7 +329,7 @@ for home_cell_x = 1:CELL_COUNT_X
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
                                                 % LJ Potential
-                                                LJ_Energy = single(Switch_Val * 4 * (EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6));
+                                                LJ_Energy = single(Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6));
                                                 % Coulomb Potential
                                                 chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
                                                 Coulomb_Energy = single(chargeProd * (inv_dist + krf * dist_2 - crf));
@@ -339,7 +339,7 @@ for home_cell_x = 1:CELL_COUNT_X
                                                 % LJ force over R
                                                 LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
                                                 % Apply switch condition for LJ force
-                                                LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
+                                                LJ_Force_over_R = -LJ_Force_over_R + Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
                                                 % Coulomb Force over R
                                                 Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
                                                 % Total force over R

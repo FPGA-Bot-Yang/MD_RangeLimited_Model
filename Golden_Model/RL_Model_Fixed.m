@@ -38,7 +38,7 @@ TOTAL_PARTICLE = 92224;                                         % particle count
 % Processing Parameters
 BOND_DISTANCE = single(0.96);                                   % Bonded pairs distance for H2O molecule
 BOND_DISTANCE_2 = BOND_DISTANCE ^ 2;
-CUTOFF_RADIUS = uint32(8);                                     % 12 angstrom cutoff radius for ApoA1
+CUTOFF_RADIUS = single(8);                                     % 12 angstrom cutoff radius for ApoA1
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
 INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
@@ -316,34 +316,45 @@ for home_cell_x = 1:CELL_COUNT_X
                                             %% Force evaluation
                                             sigma_6 = SIGMA^6;
                                             sigma_12 = sigma_6^2;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 4.28 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
+                                            inv_dist = 1 / dist;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 10.22 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
                                             inv_dist_2 = 1 / dist_2;
-                                            inv_dist_3 = inv_dist_2 / dist;
-                                            inv_dist_6 = inv_dist_2 ^ 3;
-                                            inv_dist_12 = inv_dist_6 ^ 2;
-                                            inv_dist_8 = inv_dist_6 * inv_dist_2;
-                                            inv_dist_14 = inv_dist_6 * inv_dist_8;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 1.31 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                            
+                                            inv_dist_3 = ufi((inv_dist_2 * inv_dist), 32, 31);
+                                            inv_dist_6 = ufi((inv_dist_2 ^ 3), 32, 31);
+                                            inv_dist_12 = ufi((inv_dist_6 ^ 2), 32, 31);
+                                            inv_dist_8 = ufi((inv_dist_6 * inv_dist_2), 32, 31);
+                                            inv_dist_14 = ufi((inv_dist_6 * inv_dist_8), 32, 31);
                                             % Coulomb interaction with cutoff using reaction field approximation
-                                            krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
-                                            crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
+                                            krf = ufi((INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
+                                            crf = ufi((INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
                                                 % LJ Potential
-                                                LJ_Energy = single(Switch_Val * 4 * (EPSILON*sigma_12*inv_dist_12 - EPSILON*sigma_6*inv_dist_6));
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 1.31 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                LJ_Energy = ufi((Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6)), 32, 31);
                                                 % Coulomb Potential
-                                                chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
-                                                Coulomb_Energy = single(chargeProd * (inv_dist + krf * dist_2 - crf));
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                chargeProd = ufi((ONE_4PI_EPS0 * Q1 * Q2), 32, 23);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                Coulomb_Energy = ufi((chargeProd * (inv_dist + krf * dist_2 - crf)), 32, 24);
                                                 % Total energy
-                                                Total_Energy = single(LJ_Energy + Coulomb_Energy);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                                Total_Energy = ufi((LJ_Energy + Coulomb_Energy), 32, 24);
                                                 %% Force (The force calculate here is F/r, for easy calculation of force component on each axis)
                                                 % LJ force over R
-                                                LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 1.31 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                                LJ_Force_over_R = ufi((Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8)), 32, 31);
                                                 % Apply switch condition for LJ force
-                                                LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
+                                                LJ_Force_over_R = ufi((-LJ_Force_over_R + Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist), 32, 31);
                                                 % Coulomb Force over R
-                                                Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+                                                Coulomb_Force_over_R = ufi((chargeProd * (inv_dist_3 - 2*krf)), 32, 23);
                                                 % Total force over R
-                                                Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+                                                Total_Force_over_R = ufi((LJ_Force_over_R + Coulomb_Force_over_R), 32, 23);
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
                                                 fprintf('Table lookup version for OpenMM force model is under construction......\n');
@@ -352,17 +363,19 @@ for home_cell_x = 1:CELL_COUNT_X
                                                 fprintf('Please select a valid force evaluation mode: direct or table...\n');
                                                 return;
                                             end
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 13.19 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
                                             % Accumulate the force & energy
-                                            Energy_Acc = Energy_Acc + Total_Energy;
+                                            Energy_Acc = ufi((Energy_Acc + Total_Energy), 32, 19);
                                             % Total force component in each direction
-                                            Total_Force_x = Total_Force_over_R * dist_x;
-                                            Total_Force_y = Total_Force_over_R * dist_y;
-                                            Total_Force_z = Total_Force_over_R * dist_z;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                            Total_Force_x = ufi((Total_Force_over_R * dist_x), 32, 23);
+                                            Total_Force_y = ufi((Total_Force_over_R * dist_y), 32, 23);
+                                            Total_Force_z = ufi((Total_Force_over_R * dist_z), 32, 23);
                                             % Accumulate force in each direction
-                                            Force_Acc_x = Force_Acc_x + Total_Force_x;
-                                            Force_Acc_y = Force_Acc_y + Total_Force_y;
-                                            Force_Acc_z = Force_Acc_z + Total_Force_z;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 10.22 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+                                            Force_Acc_x = ufi((Force_Acc_x + Total_Force_x), 32, 22);
+                                            Force_Acc_y = ufi((Force_Acc_y + Total_Force_y), 32, 22);
+                                            Force_Acc_z = ufi((Force_Acc_z + Total_Force_z), 32, 22);
 
                                         % Follow the force model from CAAD lab publications:
                                         % https://ieeexplore.ieee.org/document/5771251/
