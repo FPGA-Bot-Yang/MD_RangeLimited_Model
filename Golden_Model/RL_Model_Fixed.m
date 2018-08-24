@@ -250,19 +250,19 @@ for home_cell_x = 1:CELL_COUNT_X
                                 % Calculate the distance square btw the reference particle and parter particle
                                 % Since we are using unsigned fixed point here, make sure using the larger number to subtract from
                                 if neighbor_particle_pos_x >= ref_particle_pos_x
-                                    dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
+                                    dist_x = ufi((neighbor_particle_pos_x - ref_particle_pos_x), 32, 24);
                                 else
-                                    dist_x = single(ref_particle_pos_x - neighbor_particle_pos_x);
+                                    dist_x = ufi((ref_particle_pos_x - neighbor_particle_pos_x), 32, 24);
                                 end
                                 if neighbor_particle_pos_y >= ref_particle_pos_y
-                                    dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
+                                    dist_y = ufi((neighbor_particle_pos_y - ref_particle_pos_y), 32, 24);
                                 else
-                                    dist_y = single(ref_particle_pos_y - neighbor_particle_pos_y);
+                                    dist_y = ufi((ref_particle_pos_y - neighbor_particle_pos_y), 32, 24);
                                 end
                                 if neighbor_particle_pos_z >= ref_particle_pos_z
-                                    dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
+                                    dist_z = ufi((neighbor_particle_pos_z - ref_particle_pos_z), 32, 24);
                                 else
-                                    dist_z = single(ref_particle_pos_z - neighbor_particle_pos_z);
+                                    dist_z = ufi((ref_particle_pos_z - neighbor_particle_pos_z), 32, 24);
                                 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                                    
                                 dist_x_2 = ufi(dist_x^2, 32, 23);
@@ -414,37 +414,6 @@ for home_cell_x = 1:CELL_COUNT_X
                                             fprintf('Please select a valid force model between OpenMM or CAAD!\n');
                                             return;
                                     end
-                                    
-                                    % RANGE PROFILING
-                                    if RANGE_PROFILING
-                                        min_inv_r3_term = min([min_inv_r3_term inv_dist_3]);
-                                        max_inv_r3_term = max([max_inv_r3_term inv_dist_3]);
-                                        min_inv_r6_term = min([min_inv_r6_term inv_dist_6]);
-                                        max_inv_r6_term = max([max_inv_r6_term inv_dist_6]);
-                                        min_inv_r8_term = min([min_inv_r8_term inv_dist_8]);
-                                        max_inv_r8_term = max([max_inv_r8_term inv_dist_8]);
-                                        min_inv_r12_term = min([min_inv_r12_term inv_dist_12]);
-                                        max_inv_r12_term = max([max_inv_r12_term inv_dist_12]);
-                                        min_inv_r14_term = min([min_inv_r14_term inv_dist_14]);
-                                        max_inv_r14_term = max([max_inv_r14_term inv_dist_14]);
-                                        min_LJ_Force = min([min_LJ_Force LJ_Force_over_R]);
-                                        max_LJ_Force = max([max_LJ_Force LJ_Force_over_R]);
-                                        min_LJ_Energy = min([min_LJ_Energy LJ_Energy]);
-                                        max_LJ_Energy = max([max_LJ_Energy LJ_Energy]);
-                                        min_Coulomb_Force = min([min_Coulomb_Force Coulomb_Force_over_R]);
-                                        max_Coulomb_Force = max([max_Coulomb_Force Coulomb_Force_over_R]);
-                                        min_Coulomb_Energy = min([min_Coulomb_Energy Coulomb_Energy]);
-                                        max_Coulomb_Energy = max([max_Coulomb_Energy Coulomb_Energy]);
-                                        min_Total_Force = min([min_Total_Force Total_Force_over_R]);
-                                        max_Total_Force = max([max_Total_Force Total_Force_over_R]);
-                                        min_Total_Energy = min([min_Total_Energy Total_Energy]);
-                                        max_Total_Energy = max([max_Total_Energy Total_Energy]);
-                                        min_Force_Acc = min([min_Force_Acc Force_Acc_x Force_Acc_y Force_Acc_z]);
-                                        max_Force_Acc = max([max_Force_Acc Force_Acc_x Force_Acc_y Force_Acc_z]);
-                                        min_Energy_Acc = min([min_Energy_Acc Energy_Acc]);
-                                        max_Energy_Acc = max([max_Energy_Acc Energy_Acc]);
-                                    end
-                                    
                                 end
                             end
                         end
