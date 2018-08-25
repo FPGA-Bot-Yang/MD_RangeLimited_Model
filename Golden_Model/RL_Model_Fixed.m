@@ -30,9 +30,9 @@ CALCULATION_MODE = 'direct';                                    % Select Calcula
 % Select Force Model
 FORCE_MODEL = 'OpenMM';                                         % Select force model between 'OpenMM' or 'CAAD'
 % Benmarck Parameters
-CELL_COUNT_X = uint32(16);
-CELL_COUNT_Y = uint32(16);
-CELL_COUNT_Z = uint32(11);
+CELL_COUNT_X = single(16);
+CELL_COUNT_Y = single(16);
+CELL_COUNT_Z = single(11);
 CELL_PARTICLE_MAX = 220;                                        % The maximum possible particle count in each cell
 TOTAL_PARTICLE = 92224;                                         % particle count in ApoA1 benchmark
 % Processing Parameters
