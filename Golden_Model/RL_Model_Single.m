@@ -39,7 +39,7 @@ CUTOFF_RADIUS = single(8);                                     % 12 angstrom cut
 CUTOFF_RADIUS_2 = CUTOFF_RADIUS * CUTOFF_RADIUS;                % Cutoff distance square
 INV_CUTOFF_RADIUS = 1 / CUTOFF_RADIUS;
 INV_CUTOFF_RADIUS_3 = 1 / (CUTOFF_RADIUS_2 * CUTOFF_RADIUS);    % Cutoff distance cube inverse
-SWITCH_DIST = 10;                                               % Switch distance for LJ evaluation
+SWITCH_DIST = single(7);                                               % Switch distance for LJ evaluation
 % MD related Parameters (source:https://github.com/pandegroup/openmm/blob/master/wrappers/python/tests/systems/test_amber_ff.xml)
 EPSILON = single(sqrt(0.065689*0.878640));                      % sqrt[EPS(H) * EPS(O)]
 SIGMA = single((0.247135+0.295992)/2);                          % [SIG(H) + SIG(O)] / 2
