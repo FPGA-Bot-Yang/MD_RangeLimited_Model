@@ -22,6 +22,7 @@ clear all;
 %% Global variables
 ENABLE_VERIFICATION = false;
 RANGE_PROFILING = false;
+SMOOTH_ENABLE = false;
 % Input Path
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
@@ -301,17 +302,19 @@ for home_cell_x = 1:CELL_COUNT_X
                                         % https://github.com/pandegroup/openmm/blob/master/tests/TestNonbondedForce.h
                                         % Applied cutoff and switch function, but no PME
                                         case 'OpenMM'
-                                            % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
-                                            x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                            if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
-                                                Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
-                                                Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                            elseif dist >= 0 && dist < SWITCH_DIST
-                                                Switch_Val = 1;
-                                                Switch_Deri = 0;
-                                            else
-                                                Switch_Val = 0;
-                                                Switch_Deri = 0;
+                                            if SMOOTH_ENABLE
+                                                % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
+                                                x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                                if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                                                    Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
+                                                    Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
+                                                elseif dist >= 0 && dist < SWITCH_DIST
+                                                    Switch_Val = 1;
+                                                    Switch_Deri = 0;
+                                                else
+                                                    Switch_Val = 0;
+                                                    Switch_Deri = 0;
+                                                end
                                             end
                                             %% Force evaluation
                                             sigma_6 = SIGMA^6;
@@ -327,34 +330,62 @@ for home_cell_x = 1:CELL_COUNT_X
                                             inv_dist_8 = ufi((inv_dist_6 * inv_dist_2), 32, 31);
                                             inv_dist_14 = ufi((inv_dist_6 * inv_dist_8), 32, 31);
                                             % Coulomb interaction with cutoff using reaction field approximation
-                                            krf = ufi((INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
-                                            crf = ufi((INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
+                                            if SMOOTH_ENABLE
+                                                krf = ufi((INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
+                                                crf = ufi((INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1)), 32, 31);
+                                            end
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
-                                                % LJ Potential
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 1.31 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
-                                                LJ_Energy = ufi((Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6)), 32, 31);
-                                                % Coulomb Potential
+                                                if SMOOTH_ENABLE
+                                                    % LJ Potential
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 0.32 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                    LJ_Energy = ufi((Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6)), 32, 32);
+                                                    % Coulomb Potential
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
-                                                chargeProd = ufi((ONE_4PI_EPS0 * Q1 * Q2), 32, 23);
+                                                    chargeProd = ufi((ONE_4PI_EPS0 * Q1 * Q2), 32, 23);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
-                                                Coulomb_Energy = ufi((chargeProd * (inv_dist + krf * dist_2 - crf)), 32, 24);
-                                                % Total energy
+                                                    Coulomb_Energy = ufi((chargeProd * (inv_dist + krf * dist_2 - crf)), 32, 24);
+                                                    % Total energy
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                                                Total_Energy = ufi((LJ_Energy + Coulomb_Energy), 32, 24);
+                                                    Total_Energy = ufi((LJ_Energy + Coulomb_Energy), 32, 24);
+                                                else
+                                                    % LJ Potential
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 0.32 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                    LJ_Energy = ufi((4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6)), 32, 32);
+                                                    % Coulomb Potential
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                    chargeProd = ufi((ONE_4PI_EPS0 * Q1 * Q2), 32, 23);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+                                                    Coulomb_Energy = ufi((chargeProd * inv_dist), 32, 24);
+                                                    % Total energy
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 8.24 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                                    Total_Energy = ufi((LJ_Energy + Coulomb_Energy), 32, 24);
+                                                end
                                                 %% Force (The force calculate here is F/r, for easy calculation of force component on each axis)
-                                                % LJ force over R
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 1.31 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                                                LJ_Force_over_R = ufi((Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8)), 32, 31);
-                                                % Apply switch condition for LJ force
-                                                LJ_Force_over_R = ufi((-LJ_Force_over_R + Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist), 32, 31);
-                                                % Coulomb Force over R
+                                                if SMOOTH_ENABLE
+                                                    % LJ force over R
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 0.32 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                                    LJ_Force_over_R = ufi((Switch_Val*4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8)), 32, 32);
+                                                    % Apply switch condition for LJ force
+                                                    LJ_Force_over_R = ufi((LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist), 32, 32);
+                                                    % Coulomb Force over R
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-                                                Coulomb_Force_over_R = ufi((chargeProd * (inv_dist_3 - 2*krf)), 32, 23);
-                                                % Total force over R
+                                                    Coulomb_Force_over_R = ufi((chargeProd * (inv_dist_3 - 2*krf)), 32, 23);
+                                                    % Total force over R
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-                                                Total_Force_over_R = ufi((LJ_Force_over_R + Coulomb_Force_over_R), 32, 23);
+                                                    Total_Force_over_R = ufi((LJ_Force_over_R + Coulomb_Force_over_R), 32, 23);
+                                                else
+                                                    % LJ force over R
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 0.32 %%%%_over_R = ufi%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                                                    LJ_Force_over_R = ufi((4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8)), 32, 32);
+                                                    % Coulomb Force over R
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+                                                    Coulomb_Force_over_R = ufi((chargeProd * inv_dist_3), 32, 23);
+                                                    % Total force over R
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 9.23 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+                                                    Total_Force_over_R = ufi((LJ_Force_over_R + Coulomb_Force_over_R), 32, 23);
+                                                end
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
                                                 fprintf('Table lookup version for OpenMM force model is under construction......\n');
@@ -372,10 +403,10 @@ for home_cell_x = 1:CELL_COUNT_X
                                             Total_Force_y = ufi((Total_Force_over_R * dist_y), 32, 23);
                                             Total_Force_z = ufi((Total_Force_over_R * dist_z), 32, 23);
                                             % Accumulate force in each direction
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 10.22 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
-                                            Force_Acc_x = ufi((Force_Acc_x + Total_Force_x), 32, 22);
-                                            Force_Acc_y = ufi((Force_Acc_y + Total_Force_y), 32, 22);
-                                            Force_Acc_z = ufi((Force_Acc_z + Total_Force_z), 32, 22);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Fixed Format: 11.21 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+                                            Force_Acc_x = ufi((Force_Acc_x + Total_Force_x), 32, 21);
+                                            Force_Acc_y = ufi((Force_Acc_y + Total_Force_y), 32, 21);
+                                            Force_Acc_z = ufi((Force_Acc_z + Total_Force_z), 32, 21);
 
                                         % Follow the force model from CAAD lab publications:
                                         % https://ieeexplore.ieee.org/document/5771251/

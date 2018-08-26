@@ -19,6 +19,7 @@ clear all;
 %% Global variables
 ENABLE_VERIFICATION = false;
 RANGE_PROFILING = true;
+SMOOTH_ENABLE = false;
 % Input Path
 common_path = 'F:\Research_Files\MD\Ethan_GoldenModel\Matlab_Model_Ethan\Golden_Model\';
 input_position_file_name = 'input_positions_ApoA1.txt';
@@ -302,16 +303,18 @@ for home_cell_x = 1:CELL_COUNT_X
                                         % Applied cutoff and switch function, but no PME
                                         case 'OpenMM'
                                             % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
-                                            x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                            if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
-                                                Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
-                                                Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
-                                            elseif dist >= 0 && dist < SWITCH_DIST
-                                                Switch_Val = 1;
-                                                Switch_Deri = 0;
-                                            else
-                                                Switch_Val = 0;
-                                                Switch_Deri = 0;
+                                            if SMOOTH_ENABLE
+                                                x = single((dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST));
+                                                if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                                                    Switch_Val = single(1 - 10*x^3 + 15*x^4 - 6*x^5);
+                                                    Switch_Deri = single((-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST));
+                                                elseif dist >= 0 && dist < SWITCH_DIST
+                                                    Switch_Val = 1;
+                                                    Switch_Deri = 0;
+                                                else
+                                                    Switch_Val = 0;
+                                                    Switch_Deri = 0;
+                                                end
                                             end
                                             %% Force evaluation
                                             sigma_6 = SIGMA^6;
@@ -323,27 +326,48 @@ for home_cell_x = 1:CELL_COUNT_X
                                             inv_dist_8 = inv_dist_6 * inv_dist_2;
                                             inv_dist_14 = inv_dist_6 * inv_dist_8;
                                             % Coulomb interaction with cutoff using reaction field approximation
-                                            krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
-                                            crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
+                                            if SMOOTH_ENABLE
+                                                krf = single(INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1));
+                                                crf = single(INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1));
+                                            end
                                             % Direct computation
                                             if strcmp(CALCULATION_MODE, 'direct')
                                                 %% Energy
-                                                % LJ Potential
-                                                LJ_Energy = single(Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6));
-                                                % Coulomb Potential
-                                                chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
-                                                Coulomb_Energy = single(chargeProd * (inv_dist + krf * dist_2 - crf));
-                                                % Total energy
-                                                Total_Energy = single(LJ_Energy + Coulomb_Energy);
+                                                if SMOOTH_ENABLE
+                                                    % LJ Potential
+                                                    LJ_Energy = single(Switch_Val * 4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6));
+                                                    % Coulomb Potential
+                                                    chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
+                                                    Coulomb_Energy = single(chargeProd * (inv_dist + krf * dist_2 - crf));
+                                                    % Total energy
+                                                    Total_Energy = single(LJ_Energy + Coulomb_Energy);
+                                                else
+                                                    % LJ Potential
+                                                    LJ_Energy = single(4 * (-EPSILON*sigma_12*inv_dist_12 + EPSILON*sigma_6*inv_dist_6));
+                                                    % Coulomb Potential
+                                                    chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
+                                                    Coulomb_Energy = single(chargeProd * inv_dist);
+                                                    % Total energy
+                                                    Total_Energy = single(LJ_Energy + Coulomb_Energy);
+                                                end
                                                 %% Force (The force calculate here is F/r, for easy calculation of force component on each axis)
-                                                % LJ force over R
-                                                LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
-                                                % Apply switch condition for LJ force
-                                                LJ_Force_over_R = -LJ_Force_over_R + Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
-                                                % Coulomb Force over R
-                                                Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
-                                                % Total force over R
-                                                Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
+                                                if SMOOTH_ENABLE
+                                                    % LJ force over R
+                                                    LJ_Force_over_R = single(Switch_Val*4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8));
+                                                    % Apply switch condition for LJ force
+                                                    LJ_Force_over_R = single(LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist);
+                                                    % Coulomb Force over R
+                                                    Coulomb_Force_over_R = single(chargeProd * (inv_dist_3 - 2*krf));
+                                                    % Total force over R
+                                                    Total_Force_over_R = single(LJ_Force_over_R + Coulomb_Force_over_R);
+                                                else
+                                                    % LJ force over R
+                                                    LJ_Force_over_R = single(4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8));
+                                                    % Coulomb Force over R
+                                                    Coulomb_Force_over_R = single(chargeProd * inv_dist_3);
+                                                    % Total force over R
+                                                    Total_Force_over_R = single(LJ_Force_over_R + Coulomb_Force_over_R);
+                                                end
                                             % Table look-up
                                             elseif strcmp(CALCULATION_MODE, 'table')
                                                 fprintf('Table lookup version for OpenMM force model is under construction......\n');
@@ -520,10 +544,10 @@ if ENABLE_VERIFICATION
         dist_x = single(neighbor_particle_pos_x - ref_particle_pos_x);
         dist_y = single(neighbor_particle_pos_y - ref_particle_pos_y);
         dist_z = single(neighbor_particle_pos_z - ref_particle_pos_z);
-        dist_x_2 = dist_x^2;
-        dist_y_2 = dist_y^2;
-        dist_z_2 = dist_z^2;
-        dist_2 = dist_x_2 + dist_y_2 + dist_z_2;
+        dist_x_2 = single(dist_x^2);
+        dist_y_2 = single(dist_y^2);
+        dist_z_2 = single(dist_z^2);
+        dist_2 = single(dist_x_2 + dist_y_2 + dist_z_2);
 
         % Filtering logic and force calculation
         % PROFILING: Count the # of bonded particle pairs
@@ -551,17 +575,19 @@ if ENABLE_VERIFICATION
             switch FORCE_MODEL
                 case 'OpenMM'
                     % Calculate the switch function value (http://docs.openmm.org/6.2.0/userguide/theory.html)
-                    dist = sqrt(dist_2);
-                    x = (dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST);
-                    if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
-                        Switch_Val = 1 - 10*x^3 + 15*x^4 - 6*x^5;
-                        Switch_Deri = (-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST);
-                    elseif dist >= 0 && dist < SWITCH_DIST
-                        Switch_Val = 1;
-                        Switch_Deri = 0;
-                    else
-                        Switch_Val = 0;
-                        Switch_Deri = 0;
+                    dist = single(sqrt(dist_2));
+                    if SMOOTH_ENABLE
+                        x = single((dist - SWITCH_DIST) / (CUTOFF_RADIUS - SWITCH_DIST));
+                        if dist >= SWITCH_DIST && dist <= CUTOFF_RADIUS
+                            Switch_Val = single(1 - 10*x^3 + 15*x^4 - 6*x^5);
+                            Switch_Deri = single((-30*x^2 + 60*x^3 - 30*x^4) / (CUTOFF_RADIUS - SWITCH_DIST));
+                        elseif dist >= 0 && dist < SWITCH_DIST
+                            Switch_Val = 1;
+                            Switch_Deri = 0;
+                        else
+                            Switch_Val = 0;
+                            Switch_Deri = 0;
+                        end
                     end
                     inv_dist = 1 / sqrt(dist_2);
                     inv_dist_2 = 1 / dist_2;
@@ -575,15 +601,23 @@ if ENABLE_VERIFICATION
                     sigma_12 = sigma_6^2;
                     chargeProd = ONE_4PI_EPS0 * Q1 * Q2;
                     % Coulomb interaction with cutoff using reaction field approximation
-                    krf = INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1);
-                    crf = INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1);
-                    % Force (The force calculate here is F/r, for easy calculation of force component on each axis)
-                    % LJ force over R
-                    LJ_Force_over_R = Switch_Val*4*EPSILON*(12*sigma_12*inv_dist_14 - 6*sigma_6*inv_dist_8);
-                    % Apply switch condition for LJ force
-                    LJ_Force_over_R = LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist;
-                    % Coulomb Force over R
-                    Coulomb_Force_over_R = chargeProd * (inv_dist_3 - 2*krf);
+                    if SMOOTH_ENABLE
+                        krf = single(INV_CUTOFF_RADIUS_3 * (SOLVENT_DIELECTRIC - 1) / (2 * SOLVENT_DIELECTRIC + 1));
+                        crf = single(INV_CUTOFF_RADIUS * (3 * SOLVENT_DIELECTRIC) / (2 * SOLVENT_DIELECTRIC + 1));
+                        % Force (The force calculate here is F/r, for easy calculation of force component on each axis)
+                        % LJ force over R
+                        LJ_Force_over_R = single(Switch_Val*4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8));
+                        % Apply switch condition for LJ force
+                        LJ_Force_over_R = single(LJ_Force_over_R - Switch_Deri*4*EPSILON*(sigma_12*inv_dist_12 - sigma_6*inv_dist_6)*inv_dist);
+                        % Coulomb Force over R
+                        Coulomb_Force_over_R = single(chargeProd * (inv_dist_3 - 2*krf));
+                    else
+                        % Force (The force calculate here is F/r, for easy calculation of force component on each axis)
+                        % LJ force over R
+                        LJ_Force_over_R = single(4*EPSILON*(-12*sigma_12*inv_dist_14 + 6*sigma_6*inv_dist_8));
+                        % Coulomb Force over R
+                        Coulomb_Force_over_R = single(chargeProd * inv_dist_3);
+                    end
                     % Total force over R
                     Total_Force_over_R = LJ_Force_over_R + Coulomb_Force_over_R;
                     % Accumulate the force
