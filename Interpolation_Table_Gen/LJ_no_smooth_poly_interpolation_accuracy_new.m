@@ -1,8 +1,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Function: LJ_no_smooth_poly_interpolation_accuracy
+% Function: LJ_no_smooth_poly_interpolation_accuracy_new
 % Evaluate the accuracy for interpolation
 % Currently only evaluate the LJ force, equation refer to 'Efficient Calculation of Pairwise Nonbonded Forces', M. Chiu, A. Khan, M. Herbordt, FCCM2011
-% Dependency: LJ_poly_interpolation_function.m (Generating the interpolation index and stored in txt file)
+% Dependency: LJ_poly_interpolation_function_new.m (Generating the interpolation index and stored in txt file)
+%
+% Difference with the old LJ_no_smooth_poly_interpolation_accuracy.m:
+%       In this new function, for each bin(a,a+interval), the interpolation entry starts from (0,interval), instead of (a,a+interval). This way it should get better accuracy.
+%
 % Final result:
 %       Fvdw_real: real result in single precision
 %       Fvdw_poly: result evaluated using polynomial
@@ -20,7 +24,7 @@ clear all;
 % precision: # of datapoints for each interpolation
 % min, max : range of distance
 
-interpolation_order = 2;                % interpolation order, no larger than 3
+interpolation_order = 3;                % interpolation order, no larger than 3
 segment_num = 10;                       % # of segment
 bin_num = 256;                          % # of bins per segment
 precision = 8;                          % # of datepoints when generating the polynomial index 
@@ -74,7 +78,7 @@ for i = 1:size(r2,2)
 end
 
 %% Generate the interpolation table (only need to run this once if the interpolation parameter remains)
-LJ_no_smooth_poly_interpolation_function(interpolation_order,segment_num, bin_num,precision,min_range,max_range,cutoff,switchon);
+LJ_no_smooth_poly_interpolation_function_new(interpolation_order,segment_num, bin_num,precision,min_range,max_range,cutoff,switchon);
 
 %% Evaluate the interpolation result
 % Load in the index data
@@ -153,6 +157,9 @@ for i = 1:size(r2,2)
     % Calculate the index for table lookup
     lut_index = seg_ptr * bin_num + bin_ptr;
     
+    % Find the starting value of the selected bin
+    a = segment_min + (bin_ptr-1)*segment_step;
+    
     % Fetch the index for the polynomials
     c0_vdw14 = single(read_in_c0_vdw14{1}(lut_index));
     c1_vdw14 = single(read_in_c1_vdw14{1}(lut_index));
@@ -174,14 +181,14 @@ for i = 1:size(r2,2)
     % Calculate the poly value
     switch(interpolation_order)
         case 1
-            vdw14 = polyval([c1_vdw14 c0_vdw14], r2(i));
-            vdw8 = polyval([c1_vdw8 c0_vdw8], r2(i));
+            vdw14 = polyval([c1_vdw14 c0_vdw14], (r2(i)-a));
+            vdw8 = polyval([c1_vdw8 c0_vdw8], (r2(i)-a));
         case 2
-            vdw14 = polyval([c2_vdw14 c1_vdw14 c0_vdw14], r2(i));
-            vdw8 = polyval([c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
+            vdw14 = polyval([c2_vdw14 c1_vdw14 c0_vdw14], (r2(i)-a));
+            vdw8 = polyval([c2_vdw8 c1_vdw8 c0_vdw8], (r2(i)-a));
         case 3
-            vdw14 = polyval([c3_vdw14 c2_vdw14 c1_vdw14 c0_vdw14], r2(i));
-            vdw8 = polyval([c3_vdw8 c2_vdw8 c1_vdw8 c0_vdw8], r2(i));
+            vdw14 = polyval([c3_vdw14 c2_vdw14 c1_vdw14 c0_vdw14], (r2(i)-a));
+            vdw8 = polyval([c3_vdw8 c2_vdw8 c1_vdw8 c0_vdw8], (r2(i)-a));
     end
     % Calculate the force
     Fvdw_poly(i) = vdw14 - vdw8;

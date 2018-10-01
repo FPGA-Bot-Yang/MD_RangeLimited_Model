@@ -1,15 +1,18 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Function: LJ_no_smooth_poly_interpolation_function
+% Function: LJ_no_smooth_poly_interpolation_function_new
 % Generate the interpolation table
 % Currently only evaluate the LJ force, equation refer to 'Efficient Calculation of Pairwise Nonbonded Forces', M. Chiu, A. Khan, M. Herbordt, FCCM2011
+%
+% Difference with the old LJ_no_smooth_poly_interpolation_function.m:
+%       In this new function, for each bin(a,a+interval), the interpolation entry starts from (0,interval), instead of (a,a+interval). This way it should get better accuracy.
 %
 % Final result:
 %       The interpolation tables
 %
 % By: Chen Yang
+% 07/18/2018
 % Boston University, CAAD Lab
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 % Example:
 % Compute coefficients for target function f=x^-7 on range from 2^0 to 2^8 for a 2nd or 3rd order approximate polynomial with logirithmic szie intervals,
@@ -29,7 +32,7 @@
 % min, max: range of distance
 % cutoff: cut-off radius
 % switchon: switch on distance
-function  LJ_no_smooth_poly_interpolation_function(interpolation_order,segment_num,bin_num,precision,min,max,cutoff,switchon)
+function  LJ_no_smooth_poly_interpolation_function_new(interpolation_order,segment_num,bin_num,precision,min,max,cutoff,switchon)
 % interpolation_order is the order of interpolation. i.e, interpolation_order=1 produces ax+b
 % the results are from lower order to higher order, i.e coef(0,0) is the coefficient of constant term for first bin.
 	if nargin < 6 
@@ -172,9 +175,9 @@ function  LJ_no_smooth_poly_interpolation_function(interpolation_order,segment_n
     %% Start evaluation
     while(range_min < max)          % EACH SEGMENT
     
-        step = single((range_max-range_min)/bin_num);
-        ca = single(range_min);
-        cb = range_min + step;
+        step = single((range_max-range_min)/bin_num);               % bin width
+        ca = single(range_min);                                     % starting value of each bin
+        cb = range_min + step;                                      % ending value of each bin
     
         for j=1:bin_num                   % EACH BIN
             x = zeros(precision,1);
@@ -189,8 +192,8 @@ function  LJ_no_smooth_poly_interpolation_function(interpolation_order,segment_n
             delta = step/precision;
     
             for i=1:precision
-                x(i) = ca + (i-1) * delta;
-                r2 = x(i);
+                r2 = ca + (i-1) * delta;
+                x(i) = (i-1) * delta;                               % the interpolation points in each 
                 
 %                 if(r2 <= switchon2)
 %                     s = 1;
