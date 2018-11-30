@@ -5,6 +5,9 @@
 % Run the following scripts before run this:
 %                   LJ_no_smooth_poly_interpolation_accuracy.m          % This one generate the lookup table entries
 %
+% Output:
+%       VERIFICATION_REFERENCE_OUTPUT.txt
+%
 % By: Chen Yang
 % 10/02/2018
 % Boston University, CAAD Lab
@@ -22,8 +25,8 @@ BIN_NUM = 256;                          % # of bins per segment
 MIN_RANGE = 0.015625;                  % minimal range for the evaluation
 % ApoA1 cutoff is 12~13 Ang, thus set the bin as 14 to cover the range
 MAX_RANGE = MIN_RANGE * 2^SEGMENT_NUM;  % maximum range for the evaluation (currently this is the cutoff radius)
-EVALUATION_REF_NUM = 10;                % Reference Particle numbers
-EVALUATION_NEIGHBOR_NUM = 10;           % Neighbor Particle numbers
+EVALUATION_REF_NUM = 100;                % Reference Particle numbers
+EVALUATION_NEIGHBOR_NUM = 100;           % Neighbor Particle numbers
 
 filepath = '';
 filename = 'input_positions_ApoA1.txt';
@@ -107,7 +110,7 @@ if INTERPOLATION_ORDER > 2
 end
 
 % Prepare the output file
-fresult = fopen('REFERENCE_OUTPUT.txt', 'wt');
+fresult = fopen('VERIFICATION_REFERENCE_OUTPUT.txt', 'wt');
 fprintf(fresult,'ParticlePairs:\t\t\t\t\t\tTotal LJ\tX_Comp\t\tY_Comp\t\tZ_Comp\n');
 fprintf(fresult,'\t\tDistance info: r2\tdx\tdy\tdz\t\n');
 
